@@ -72,14 +72,32 @@
     </div>
 
     <div class="form-group">
-      <label class="form-label">📧 البريد الإلكتروني</label>
-      <input type="email" class="form-control" id="email" placeholder="example@email.com" required>
+      <label class="form-label">📧 البريد الإلكتروني (اختياري)</label>
+      <input type="email" class="form-control" id="email" placeholder="example@email.com">
     </div>
 
     <div class="form-group">
       <label class="form-label">🏙️ المحافظة</label>
       <select class="form-control" id="governorate" required>
         <option value="">اختر محافظتك</option>
+        <option value="بغداد">بغداد</option>
+        <option value="البصرة">البصرة</option>
+        <option value="نينوى">نينوى</option>
+        <option value="أربيل">أربيل</option>
+        <option value="النجف">النجف</option>
+        <option value="كربلاء">كربلاء</option>
+        <option value="بابل">بابل</option>
+        <option value="الأنبار">الأنبار</option>
+        <option value="صلاح الدين">صلاح الدين</option>
+        <option value="ديالى">ديالى</option>
+        <option value="كركوك">كركوك</option>
+        <option value="واسط">واسط</option>
+        <option value="ميسان">ميسان</option>
+        <option value="القادسية">القادسية</option>
+        <option value="ذي قار">ذي قار</option>
+        <option value="المثنى">المثنى</option>
+        <option value="السليمانية">السليمانية</option>
+        <option value="دهوك">دهوك</option>
       </select>
     </div>
 
@@ -95,6 +113,15 @@
           <label class="form-label">القسم</label>
           <select class="form-control" id="department">
             <option value="">القسم الطبي</option>
+            <option value="الطب الباطني">الطب الباطني</option>
+            <option value="طب الأطفال">طب الأطفال</option>
+            <option value="النساء والتوليد">النساء والتوليد</option>
+            <option value="جراحة العظام">جراحة العظام</option>
+            <option value="طب العيون">طب العيون</option>
+            <option value="طب الأسنان">طب الأسنان</option>
+            <option value="الأمراض الجلدية">الأمراض الجلدية</option>
+            <option value="أمراض القلب">أمراض القلب</option>
+            <option value="المختبرات والتحاليل">المختبرات والتحاليل</option>
           </select>
         </div>
       </div>
@@ -171,9 +198,17 @@
         api('GET', '/departments'),
       ]);
       const govSel = document.getElementById('governorate');
-      govRes.governorates.forEach(g => { govSel.innerHTML += `<option value="${g}">${g}</option>`; });
+      if (govRes.governorates.length > 0) {
+        const existingGovs = Array.from(govSel.options).map(o => o.value);
+        govRes.governorates.forEach(g => { 
+          if (!existingGovs.includes(g)) govSel.innerHTML += `<option value="${g}">${g}</option>`;
+        });
+      }
       const deptSel = document.getElementById('department');
-      deptRes.departments.forEach(d => { deptSel.innerHTML += `<option value="${d.name}">${d.name}</option>`; });
+      const existingDepts = Array.from(deptSel.options).map(o => o.value);
+      deptRes.departments.forEach(d => { 
+        if (!existingDepts.includes(d.name)) deptSel.innerHTML += `<option value="${d.name}">${d.name}</option>`;
+      });
     } catch {}
   };
   loadData();

@@ -23,16 +23,24 @@ const sendTokenResponse = (user, statusCode, res) => {
 };
 
 // @route POST /api/auth/register
-router.post('/register', async (req, res) => {
+router.post('/register', async (req, res, next) => {
   try {
     const { name, email, phone, password, role, governorate, specialization, department, institutionName, institutionType } = req.body;
 
-    // Check duplicate email
-    const existing = await User.findOne({ email });
-    if (existing) return res.status(400).json({ success: false, message: 'البريد الإلكتروني مستخدم مسبقاً' });
+    if (!phone) return res.status(400).json({ success: false, message: 'رقم الهاتف مطلوب' });
+
+    // Check duplicate phone
+    const existingPhone = await User.findOne({ phone });
+    if (existingPhone) return res.status(400).json({ success: false, message: 'رقم الهاتف مستخدم مسبقاً' });
+
+    // Check duplicate email (if provided)
+    if (email) {
+      const existingEmail = await User.findOne({ email });
+      if (existingEmail) return res.status(400).json({ success: false, message: 'البريد الإلكتروني مستخدم مسبقاً' });
+    }
 
     // Create user
-    const user = await User.create({ name, email, phone, password, role: role || 'patient', governorate });
+    const user = await User.create({ name, email: email || undefined, phone, password, role: role || 'patient', governorate });
 
     // If doctor, create doctor profile
     if (role === 'doctor') {
@@ -58,19 +66,22 @@ router.post('/register', async (req, res) => {
 
     sendTokenResponse(user, 201, res);
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 });
 
 // @route POST /api/auth/login
-router.post('/login', async (req, res) => {
+router.post('/login', async (req, res, next) => {
   try {
-    const { email, password } = req.body;
-    if (!email || !password)
-      return res.status(400).json({ success: false, message: 'البريد وكلمة المرور مطلوبان' });
+    const { identifier, password } = req.body; // identifier can be email or phone
+    if (!identifier || !password)
+      return res.status(400).json({ success: false, message: 'رقم الهاتف/البريد وكلمة المرور مطلوبان' });
 
-    const user = await User.findOne({ email }).select('+password');
+    // Find user by email OR phone
+    const user = await User.findOne({ 
+      $or: [{ email: identifier.toLowerCase() }, { phone: identifier }] 
+    }).select('+password');
+
     if (!user) return res.status(401).json({ success: false, message: 'بيانات الدخول غير صحيحة' });
 
     const isMatch = await user.matchPassword(password);
@@ -78,12 +89,12 @@ router.post('/login', async (req, res) => {
 
     sendTokenResponse(user, 200, res);
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 });
 
 // @route GET /api/auth/me
-router.get('/me', protect, async (req, res) => {
+router.get('/me', protect, async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
     let profile = null;
@@ -91,27 +102,27 @@ router.get('/me', protect, async (req, res) => {
     if (user.role === 'institution') profile = await Institution.findOne({ user: user._id });
     res.json({ success: true, user, profile });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 });
 
 // @route GET /api/auth/notifications
-router.get('/notifications', protect, async (req, res) => {
+router.get('/notifications', protect, async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
     res.json({ success: true, notifications: user.notifications.sort((a,b) => b.createdAt - a.createdAt) });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 });
 
 // @route PUT /api/auth/notifications/read
-router.put('/notifications/read', protect, async (req, res) => {
+router.put('/notifications/read', protect, async (req, res, next) => {
   try {
     await User.findByIdAndUpdate(req.user.id, { $set: { 'notifications.$[].isRead': true } });
     res.json({ success: true, message: 'تم تعليم الإشعارات كمقروءة' });
   } catch (err) {
-    res.status(500).json({ success: false, message: err.message });
+    next(err);
   }
 });
 

@@ -6,12 +6,17 @@ const UserSchema = new mongoose.Schema({
   name: { type: String, required: [true, 'الاسم مطلوب'], trim: true },
   email: {
     type: String,
-    required: [true, 'البريد الإلكتروني مطلوب'],
     unique: true,
+    sparse: true,
     lowercase: true,
     match: [/^\S+@\S+\.\S+$/, 'بريد إلكتروني غير صالح']
   },
-  phone: { type: String, required: [true, 'رقم الهاتف مطلوب'], trim: true },
+  phone: {
+    type: String,
+    required: [true, 'رقم الهاتف مطلوب'],
+    unique: [true, 'رقم الهاتف مستخدم مسبقاً'],
+    trim: true
+  },
   password: { type: String, required: [true, 'كلمة المرور مطلوبة'], minlength: 6, select: false },
   role: { type: String, enum: ['patient', 'doctor', 'institution', 'admin'], default: 'patient' },
   governorate: { type: String },
@@ -29,11 +34,11 @@ const UserSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Hash password before save
-UserSchema.pre('save', async function (next) {
-  if (!this.isModified('password')) return next();
+UserSchema.pre('save', async function () {
+  if (!this.isModified('password')) return;
+
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
-  next();
 });
 
 // Match password
