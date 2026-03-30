@@ -6,6 +6,7 @@ const http = require('http');
 const { Server } = require('socket.io');
 const connectDB = require('./config/db');
 const { startCronJobs } = require('./services/cronJobs');
+const { startGrpcServer } = require('./grpc/backupServer');
 
 // Connect to DB
 connectDB();
@@ -41,8 +42,13 @@ app.use('/api/institutions', require('./routes/institutions'));
 app.use('/api/labs', require('./routes/labs'));
 app.use('/api/departments', require('./routes/departments'));
 
-// Serve frontend for all other routes (SPA style)
-app.get('/{*path}', (req, res) => {
+// 404 handler for API routes
+app.use('/api', (req, res) => {
+  res.status(404).json({ success: false, message: `API route ${req.originalUrl} not found` });
+});
+
+// SPA catch-all (Must be LAST)
+app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, '../public/index.html'));
 });
 
@@ -57,4 +63,5 @@ server.listen(PORT, () => {
   console.log(`\n🏥 منصة طبيبي تعمل على: http://localhost:${PORT}`);
   console.log(`⚙️  البيئة: ${process.env.NODE_ENV}`);
   startCronJobs();
+  startGrpcServer();
 });

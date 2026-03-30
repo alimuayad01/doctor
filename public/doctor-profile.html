@@ -7,6 +7,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/css/main.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <style>
     .profile-hero { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); padding: 100px 0 60px; }
     .profile-card { display: flex; align-items: center; gap: 32px; color: white; }
@@ -20,6 +21,20 @@
     .cred-badge { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--secondary); border-radius: var(--radius-sm); margin-bottom: 8px; }
     .review-card { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 12px; }
     .booking-sticky { position: sticky; top: 90px; }
+    .time-slot.booked { background: #fee2e2; color: #991b1b; border-color: #fca5a5; cursor: not-allowed; opacity: 0.7; pointer-events: none; }
+    .time-slot.booked::after { content: ' (محجوز)'; font-size: 0.7rem; display: block; }
+    
+    .lang-switcher { display: flex; gap: 8px; margin-left: 15px; }
+    .lang-btn { background: rgba(255,255,255,0.1); border: none; padding: 4px 10px; border-radius: 4px; color: white; cursor: pointer; font-size: 0.75rem; font-weight: 700; }
+    .lang-btn.active { background: white; color: var(--primary); }
+
+    /* Print Styles */
+    @media print {
+      body * { visibility: hidden; }
+      #printableReceipt, #printableReceipt * { visibility: visible; }
+      #printableReceipt { position: absolute; left: 0; top: 0; width: 100%; border: none; padding: 20px; }
+    }
+    #printableReceipt { display: none; }
     @media(max-width: 1024px){ .profile-layout { grid-template-columns: 1fr; } .booking-sticky { position: relative; top: auto; } }
     @media(max-width: 600px){ .profile-card { flex-direction: column; text-align: center; } }
   </style>
@@ -28,7 +43,14 @@
 
 <nav class="navbar scrolled" style="background:rgba(255,255,255,0.98);backdrop-filter:blur(20px);">
   <div class="nav-inner">
-    <a class="nav-logo" href="/" style="color:var(--primary)">🏥 طبيبي<span>.</span></a>
+    <a class="nav-logo" href="/" style="color:var(--primary)" data-i18n="app_name">🏥 طبيبي<span>.</span></a>
+    
+    <div class="lang-switcher">
+      <button class="lang-btn" onclick="setLanguage('ar')" id="lang-ar">عربي</button>
+      <button class="lang-btn" onclick="setLanguage('ku')" id="lang-ku">کوردی</button>
+      <button class="lang-btn" onclick="setLanguage('en')" id="lang-en">EN</button>
+    </div>
+
     <div class="nav-actions" id="navActions"></div>
   </div>
 </nav>
@@ -45,42 +67,42 @@
       <!-- Left Column -->
       <div>
         <div class="section-card" id="bioSection" style="display:none">
-          <h3>👨‍⚕️ نبذة عن الطبيب</h3>
+          <h3 data-i18n="about_doctor">👨‍⚕️ نبذة عن الطبيب</h3>
           <p id="doctorBio" style="color:var(--text-medium);line-height:1.9"></p>
         </div>
 
+        <div class="section-card" id="mapSection">
+          <h3 data-i18n="location">📍 الموقع الجغرافي</h3>
+          <div id="doctorMap" style="height:300px; border-radius:var(--radius-sm); margin-bottom:15px; border:1px solid var(--border); z-index:5">
+             <div style="height:100%; display:flex; align-items:center; justify-content:center; background:#f8fafc; color:var(--text-light)">جاري تحميل الموقع...</div>
+          </div>
+          <button id="googleMapsBtn" class="btn btn-outline btn-full" style="display:none; gap:10px" onclick="openGoogleMaps()">
+            <span style="font-size:1.2rem">🗺️</span> <span data-i18n="get_directions">التوجه عبر خرائط جوجل</span>
+          </button>
+        </div>
+
         <div class="section-card" id="credsSection" style="display:none">
-          <h3>🎓 الشهادات والمؤهلات</h3>
+          <h3 data-i18n="credentials">🎓 الشهادات والمؤهلات</h3>
           <div id="credsList"></div>
         </div>
 
-        <div class="section-card" id="expSection" style="display:none">
-          <h3>💼 الخبرات العملية</h3>
-          <div id="expList"></div>
-        </div>
-
-        <div class="section-card">
-          <h3>⭐ آراء المرضى</h3>
+        <div class="section-card" id="reviewsSection">
+          <h3 data-i18n="patient_reviews">⭐ آراء المرضى</h3>
           <div id="reviewsList"><div class="spinner"></div></div>
-
+          
           <!-- Add Review -->
           <div id="addReviewSection" style="margin-top:24px;padding-top:24px;border-top:2px solid var(--secondary);display:none">
             <h4 style="margin-bottom:16px;color:var(--text-dark)">أضف تقييمك</h4>
             <div class="form-group">
-              <label class="form-label">تقييمك</label>
+              <label class="form-label" data-i18n="rating">تقييمك</label>
               <div id="starRating"></div>
             </div>
             <div class="form-group">
-              <label class="form-label">تعليقك (اختياري)</label>
+              <label class="form-label" data-i18n="comment">تعليقك (اختياري)</label>
               <textarea class="form-control" id="reviewComment" placeholder="شارك تجربتك مع هذا الطبيب..."></textarea>
             </div>
-            <div class="form-group">
-              <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:0.9rem;font-weight:600">
-                <input type="checkbox" id="reviewAnon" style="width:16px;height:16px"> نشر بشكل مجهول
-              </label>
-            </div>
             <div id="reviewAlert"></div>
-            <button class="btn btn-primary btn-sm" onclick="submitReview()">نشر التقييم</button>
+            <button class="btn btn-primary btn-sm" onclick="submitReview()" data-i18n="confirm">نشر التقييم</button>
           </div>
         </div>
       </div>
@@ -88,93 +110,160 @@
       <!-- Right Column - Booking -->
       <div>
         <div class="section-card booking-sticky">
-          <h3>📅 احجز موعداً</h3>
+          <h3 data-i18n="book_now">📅 احجز موعداً</h3>
           <div id="bookingInfo" style="margin-bottom:16px"></div>
 
           <div class="form-group">
-            <label class="form-label">اختر التاريخ</label>
+            <label class="form-label" data-i18n="date">اختر التاريخ</label>
             <input type="date" class="form-control" id="bookDate" onchange="loadSlots()">
           </div>
 
           <div id="slotsSection" style="display:none">
-            <label class="form-label">اختر الوقت</label>
+            <label class="form-label" data-i18n="time">اختر الوقت</label>
             <div class="time-slots-grid" id="slotsGrid"></div>
           </div>
 
           <div class="form-group" style="margin-top:12px">
-            <label class="form-label">نوع الزيارة</label>
-            <select class="form-control" id="bookType">
-              <option value="كشف">كشف أول</option>
-              <option value="متابعة">متابعة</option>
-              <option value="استشارة">استشارة</option>
-            </select>
+            <label class="form-label" data-i18n="priority" style="font-weight:700">أولوية الحجز</label>
+            <div style="display:flex; flex-direction:column; gap:10px; margin-top:8px">
+              <label style="display:flex; align-items:center; gap:12px; cursor:pointer; padding:10px; border:1px solid var(--border); border-radius:var(--radius-sm)">
+                <input type="radio" name="priority" value="normal" checked onchange="updatePriceDisplay()">
+                <div><strong>حجز اعتيادي</strong><br><small id="pPrice-normal">---</small></div>
+              </label>
+              <label style="display:flex; align-items:center; gap:12px; cursor:pointer; padding:10px; border:1px solid var(--border); border-radius:var(--radius-sm)">
+                <input type="radio" name="priority" value="urgent" onchange="updatePriceDisplay()">
+                <div style="color:#d97706"><strong>حجز مستعجل (+5,000)</strong><br><small id="pPrice-urgent">---</small></div>
+              </label>
+              <label style="display:flex; align-items:center; gap:12px; cursor:pointer; padding:10px; border:1px solid var(--border); border-radius:var(--radius-sm)">
+                <input type="radio" name="priority" value="emergency" onchange="updatePriceDisplay()">
+                <div style="color:var(--danger)"><strong>حجز طارئ (+10,000)</strong><br><small id="pPrice-emergency">---</small></div>
+              </label>
+            </div>
           </div>
 
           <div class="form-group">
-            <label class="form-label">ملاحظات</label>
-            <textarea class="form-control" id="bookNotes" placeholder="ملاحظاتك..." rows="3"></textarea>
+            <label class="form-label">رفع صورة للحالة (اختياري)</label>
+            <input type="file" class="form-control" id="caseImage" accept="image/*">
+            <small style="color:var(--text-light)">يساعد هذا في تسريع الموافقة على الحالات الطارئة</small>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">طريقة الدفع</label>
+            <select class="form-control" id="paymentMethod">
+              <script>
+                document.write(`
+                  <option value="cash">💵 دفع نقدي في العيادة</option>
+                  <option value="zaincash">📲 Zain Cash</option>
+                  <option value="mastercard">💳 MasterCard / Visa</option>
+                `);
+              </script>
+            </select>
           </div>
 
           <div id="bookAlert"></div>
-          <button class="btn btn-primary btn-full" id="bookBtn" onclick="confirmBooking()">✅ تأكيد الموعد</button>
-          <p style="text-align:center;font-size:0.8rem;color:var(--text-light);margin-top:12px">سيُرسل لك تذكير قبل يوم وقبل ساعة من الموعد</p>
+          <button class="btn btn-primary btn-full btn-lg" id="bookBtn" onclick="confirmBooking()" data-i18n="book_now">✅ تأكيد الموعد</button>
         </div>
       </div>
     </div>
   </div>
 </div>
 
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <script src="/js/api.js"></script>
+<script src="/js/utils.js"></script>
+<script src="/js/i18n.js"></script>
 <script>
   const urlParams = new URLSearchParams(window.location.search);
   const doctorId = urlParams.get('id');
   let selectedSlot = null;
   let selectedRating = 0;
+  let doctorCoords = null;
 
   if (!doctorId) window.location = '/search.html';
+
+  // Language visual
+  document.getElementById(`lang-${currentLang}`).classList.add('active');
 
   // Navbar
   const user = getUser();
   const navActions = document.getElementById('navActions');
   if (user && getToken()) {
-    navActions.innerHTML = `<button class="btn btn-outline btn-sm" onclick="window.history.back()">← رجوع</button>`;
+    navActions.innerHTML = `<button class="btn btn-outline btn-sm" onclick="window.history.back()">← ${t('cancel')}</button>`;
   } else {
     navActions.innerHTML = `
-      <button class="btn btn-outline btn-sm" onclick="window.location='/login.html'">الدخول</button>
-      <button class="btn btn-primary btn-sm" onclick="window.location='/register.html'">سجل</button>
+      <button class="btn btn-outline btn-sm" onclick="window.location='/login.html'">${t('login')}</button>
+      <button class="btn btn-primary btn-sm" onclick="window.location='/register.html'">${t('register')}</button>
     `;
   }
+
+  const initDoctorMap = (lat, lng) => {
+    if (!lat || !lng) {
+        document.getElementById('doctorMap').innerHTML = `<div style="height:100%; display:flex; align-items:center; justify-content:center; background:#f1f5f9; color:var(--text-light)">الموقع غير محدد بدقة</div>`;
+        return;
+    }
+    doctorCoords = { lat, lng };
+    document.getElementById('doctorMap').innerHTML = '';
+    const map = L.map('doctorMap', { zoomControl: false }).setView([lat, lng], 15);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    L.marker([lat, lng]).addTo(map);
+    document.getElementById('googleMapsBtn').style.display = 'flex';
+  };
+
+  const openGoogleMaps = () => {
+    if (doctorCoords) {
+      window.open(`https://www.google.com/maps/dir/?api=1&destination=${doctorCoords.lat},${doctorCoords.lng}`, '_blank');
+    }
+  };
+
+  let doctorPrices = { normal: 25000, urgent: 30000, emergency: 35000 };
+
+  const updatePriceDisplay = () => {
+    const priority = document.querySelector('input[name="priority"]:checked').value;
+    const price = doctorPrices[priority];
+    document.getElementById('currentPriceDisplay').textContent = `${price.toLocaleString()} د.ع`;
+    
+    document.getElementById('pPrice-normal').textContent = `${doctorPrices.normal.toLocaleString()} د.ع`;
+    document.getElementById('pPrice-urgent').textContent = `${doctorPrices.urgent.toLocaleString()} د.ع`;
+    document.getElementById('pPrice-emergency').textContent = `${doctorPrices.emergency.toLocaleString()} د.ع`;
+  };
 
   const loadDoctor = async () => {
     try {
       const { doctor, reviews } = await api('GET', `/doctors/${doctorId}`);
+      doctorPrices = {
+        normal: doctor.consultationFee || 25000,
+        urgent: doctor.specialConsultationFee || (doctor.consultationFee + 5000) || 30000,
+        emergency: doctor.emergencyConsultationFee || (doctor.consultationFee + 10000) || 35000
+      };
+      updatePriceDisplay();
 
+      document.title = `د. ${doctor.user?.name} | ${t('app_name')}`;
+      
       // Hero
-      document.title = `د. ${doctor.user?.name} | طبيبي`;
       document.getElementById('profileHero').innerHTML = `
         <div class="profile-card">
           <div class="profile-avatar">${doctor.user?.avatar ? `<img src="${doctor.user.avatar}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : '👨‍⚕️'}</div>
           <div>
             <div class="profile-name">د. ${doctor.user?.name}</div>
-            <div class="profile-spec">${doctor.specialization} | ${doctor.department}</div>
+            <div class="profile-spec">${doctor.specialization} | ${t(doctor.department)}</div>
             <div style="display:flex;gap:16px;margin-top:12px;flex-wrap:wrap">
-              <span style="opacity:0.85">📍 ${doctor.governorate}</span>
-              ${doctor.clinicName ? `<span style="opacity:0.85">🏥 ${doctor.clinicName}</span>` : ''}
-              ${doctor.consultationFee ? `<span style="opacity:0.85">💵 ${doctor.consultationFee.toLocaleString()} دينار</span>` : ''}
-            </div>
-            <div style="display:flex;align-items:center;gap:8px;margin-top:12px">
-              <div style="color:#f59e0b;font-size:1.1rem">${renderStars(doctor.averageRating || 0)}</div>
-              <span style="opacity:0.9">${(doctor.averageRating || 0).toFixed(1)} (${doctor.totalReviews || 0} تقييم)</span>
-              ${doctor.isAcceptingAppointments ? '<span style="background:rgba(0,200,150,0.2);padding:4px 12px;border-radius:50px;font-size:0.8rem">✅ يستقبل مواعيد</span>' : '<span style="background:rgba(255,100,100,0.2);padding:4px 12px;border-radius:50px;font-size:0.8rem">❌ لا يستقبل</span>'}
+              <span style="opacity:0.85">📍 ${t(doctor.governorate)}</span>
+              <span style="opacity:0.85">💵 <span id="currentPriceDisplay">${doctorPrices.normal.toLocaleString()} د.ع</span></span>
             </div>
           </div>
         </div>
       `;
 
-      // Bio
       if (doctor.bio) {
         document.getElementById('bioSection').style.display = 'block';
         document.getElementById('doctorBio').textContent = doctor.bio;
+      }
+
+      // Map
+      if (doctor.location && doctor.location.lat) {
+          initDoctorMap(doctor.location.lat, doctor.location.lng);
+      } else {
+          document.getElementById('mapSection').style.display = 'none';
       }
 
       // Credentials
@@ -183,77 +272,44 @@
         document.getElementById('credsList').innerHTML = doctor.credentials.map(c => `
           <div class="cred-badge">
             <span style="font-size:1.5rem">🎓</span>
-            <div>
-              <strong>${c.title}</strong><br>
-              <small style="color:var(--text-medium)">${c.institution}${c.year ? ' - ' + c.year : ''} | ${c.type}</small>
-            </div>
-            ${c.fileUrl ? `<a href="${c.fileUrl}" target="_blank" class="btn btn-outline btn-sm" style="margin-right:auto">عرض الوثيقة</a>` : ''}
+            <div><strong>${c.title}</strong><br><small>${c.institution}</small></div>
           </div>
         `).join('');
       }
 
-      // Experience
-      if (doctor.experience?.length > 0) {
-        document.getElementById('expSection').style.display = 'block';
-        document.getElementById('expList').innerHTML = doctor.experience.map(e => `
-          <div class="cred-badge">
-            <span style="font-size:1.5rem">💼</span>
-            <div>
-              <strong>${e.position}</strong><br>
-              <small style="color:var(--text-medium)">${e.hospital}${e.from ? ' | ' + new Date(e.from).getFullYear() : ''}${e.current ? ' - حتى الآن' : (e.to ? ' - ' + new Date(e.to).getFullYear() : '')}</small>
-            </div>
-          </div>
-        `).join('');
-      }
-
-      // Reviews
       renderReviews(reviews);
 
-      // Booking info
+      // Booking Summary
       document.getElementById('bookingInfo').innerHTML = `
         <div style="display:flex;flex-direction:column;gap:6px;font-size:0.9rem">
           <div style="display:flex;align-items:center;gap:8px"><span>👨‍⚕️</span><span>د. ${doctor.user?.name}</span></div>
-          ${doctor.clinicAddress ? `<div style="display:flex;align-items:center;gap:8px"><span>📍</span><span>${doctor.clinicAddress}</span></div>` : ''}
-          ${doctor.consultationFee ? `<div style="display:flex;align-items:center;gap:8px"><span>💵</span><span style="color:var(--primary);font-weight:700">${doctor.consultationFee.toLocaleString()} دينار</span></div>` : ''}
+          <div style="display:flex;align-items:center;gap:8px"><span>📍</span><span>${t(doctor.governorate)} - ${doctor.clinicName || ''}</span></div>
         </div>
       `;
 
-      // Set min date for booking
       const today = new Date().toISOString().split('T')[0];
       document.getElementById('bookDate').min = today;
 
-      // Show review form if logged in as patient
       if (user && user.role === 'patient') {
         document.getElementById('addReviewSection').style.display = 'block';
-        const getRating = createStarRating('starRating', (r) => { selectedRating = r; });
+        if (typeof createStarRating === 'function') createStarRating('starRating', (r) => { selectedRating = r; });
       }
 
-      if (!doctor.isAcceptingAppointments) {
-        document.getElementById('bookBtn').disabled = true;
-        document.getElementById('bookBtn').textContent = 'الطبيب لا يستقبل مواعيد حالياً';
-      }
     } catch (err) {
-      document.getElementById('profileHero').innerHTML = `<p style="color:white;text-align:center">تعذر تحميل بيانات الطبيب</p>`;
+      document.getElementById('profileHero').innerHTML = `<p style="color:white;text-align:center">${err.message}</p>`;
     }
   };
 
   const renderReviews = (reviews) => {
     const el = document.getElementById('reviewsList');
-    if (!reviews || reviews.length === 0) {
-      el.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:20px">لا توجد تقييمات حتى الآن. كن أول من يضيف تقييماً!</p>';
-      return;
-    }
+    if (!reviews || reviews.length === 0) { el.innerHTML = `<p style="text-align:center;padding:20px;color:var(--text-light)">${t('patient_reviews')}</p>`; return; }
     el.innerHTML = reviews.map(r => `
       <div class="review-card">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-          <strong style="font-size:0.9rem">${r.isAnonymous ? '👤 مجهول' : (r.patient?.name || 'مريض')}</strong>
-          <div style="display:flex;align-items:center;gap:8px">
-            ${renderStars(r.rating)}
-            <small style="color:var(--text-light)">${new Date(r.createdAt).toLocaleDateString('ar-IQ')}</small>
-          </div>
+        <div style="display:flex;justify-content:space-between">
+          <strong>${r.isAnonymous ? '👤' : (r.patient?.name || 'مريض')}</strong>
+          <span>${renderStars(r.rating)}</span>
         </div>
-        ${r.comment ? `<p style="color:var(--text-medium);font-size:0.9rem">${r.comment}</p>` : ''}
-        ${r.doctorReply ? `<div style="margin-top:10px;padding:10px;background:var(--secondary);border-radius:var(--radius-sm);font-size:0.85rem"><strong>رد الطبيب:</strong> ${r.doctorReply}</div>` : ''}
+        ${r.comment ? `<p style="margin-top:8px;font-size:0.9rem">${r.comment}</p>` : ''}
       </div>
     `).join('');
   };
@@ -261,23 +317,12 @@
   const loadSlots = async () => {
     const date = document.getElementById('bookDate').value;
     if (!date) return;
-    const section = document.getElementById('slotsSection');
     const grid = document.getElementById('slotsGrid');
-    section.style.display = 'block';
+    document.getElementById('slotsSection').style.display = 'block';
     grid.innerHTML = '<div class="spinner"></div>';
-    selectedSlot = null;
-
     try {
       const { slots } = await api('GET', `/doctors/${doctorId}/available-slots?date=${date}`);
-      if (!slots || slots.length === 0) {
-        grid.innerHTML = '<p style="color:var(--text-light);text-align:center;grid-column:1/-1;padding:16px">لا توجد أوقات متاحة</p>';
-        return;
-      }
-      grid.innerHTML = slots.map(s => `
-        <div class="time-slot${s.isBooked?' booked':''}" onclick="${s.isBooked?'':'selectSlot(\''+s.time+'\',this)'}">
-          ${s.time}
-        </div>
-      `).join('');
+      grid.innerHTML = (slots || []).map(s => `<div class="time-slot${s.isBooked?' booked':''}" onclick="${s.isBooked?'':'selectSlot(\''+s.time+'\',this)'}">${s.time}</div>`).join('') || 'لا توجد مواعيد';
     } catch {}
   };
 
@@ -288,57 +333,52 @@
   };
 
   const confirmBooking = async () => {
-    if (!getToken()) {
-      showToast('يجب تسجيل الدخول أولاً', 'warning');
-      setTimeout(() => window.location = '/login.html', 1500);
-      return;
-    }
-    const alertEl = document.getElementById('bookAlert');
-    alertEl.innerHTML = '';
-    if (!selectedSlot) { alertEl.innerHTML = '<div class="alert alert-error">يرجى اختيار وقت الموعد</div>'; return; }
-    const date = document.getElementById('bookDate').value;
-    if (!date) { alertEl.innerHTML = '<div class="alert alert-error">يرجى اختيار التاريخ</div>'; return; }
-
+    if (!getToken()) { showToast(t('login'), 'warning'); return; }
+    if (!selectedSlot) { showToast('يرجى اختيار الوقت', 'warning'); return; }
+    
+    const priority = document.querySelector('input[name="priority"]:checked').value;
+    const paymentMethod = document.getElementById('paymentMethod').value;
+    const caseImageFile = document.getElementById('caseImage').files[0];
+    
+    const fd = new FormData();
+    fd.append('doctorId', doctorId);
+    fd.append('date', document.getElementById('bookDate').value);
+    fd.append('startTime', selectedSlot);
+    fd.append('priority', priority);
+    fd.append('paymentMethod', paymentMethod);
+    fd.append('type', priority === 'normal' ? 'كشف' : (priority === 'urgent' ? 'مستعجل' : 'طارئ'));
+    if (caseImageFile) fd.append('caseImage', caseImageFile);
+    
     const btn = document.getElementById('bookBtn');
-    btn.disabled = true; btn.textContent = 'جاري الحجز...';
-
+    btn.disabled = true; btn.textContent = '...';
     try {
-      await api('POST', '/appointments', {
-        doctorId,
-        date,
-        startTime: selectedSlot,
-        type: document.getElementById('bookType').value,
-        notes: document.getElementById('bookNotes').value,
-      });
-      showToast('تم تأكيد موعدك بنجاح! ✅ ستصل لك رسالة تذكير قبل يوم من الموعد', 'success', 5000);
-      alertEl.innerHTML = '<div class="alert alert-success">✅ تم تأكيد الموعد! يمكنك مراجعة مواعيدك من لوحة التحكم</div>';
-    } catch (err) {
-      alertEl.innerHTML = `<div class="alert alert-error">❌ ${err.message}</div>`;
-    } finally {
-      btn.disabled = false; btn.textContent = '✅ تأكيد الموعد';
+      const { appointment } = await api('POST', '/appointments', fd, true);
+      const msg = appointment?.status === 'confirmed'
+        ? '✅ تم قبول موعدك تلقائياً! سيصلك تذكير قريباً.'
+        : '📋 تم إرسال الطلب بنجاح، بانتظار موافقة الطبيب.';
+      showToast(msg, 'success');
+      setTimeout(() => window.location.href = '/dashboard-patient.html', 2000);
+    } catch (err) { 
+      showToast(err.message, 'error'); 
+      btn.disabled = false; 
+      btn.textContent = '✅ تأكيد الموعد'; 
     }
   };
 
   const submitReview = async () => {
-    if (!getToken()) { showToast('يجب تسجيل الدخول', 'warning'); return; }
-    if (!selectedRating) { showToast('يرجى اختيار عدد النجوم', 'warning'); return; }
-    const alertEl = document.getElementById('reviewAlert');
+    if (!selectedRating) { showToast(t('rating'), 'warning'); return; }
     try {
-      await api('POST', '/reviews', {
-        doctorId,
-        rating: selectedRating,
-        comment: document.getElementById('reviewComment').value,
-        isAnonymous: document.getElementById('reviewAnon').checked,
-      });
-      showToast('تم نشر تقييمك بنجاح ✅', 'success');
-      document.getElementById('addReviewSection').style.display = 'none';
+      await api('POST', '/reviews', { doctorId, rating: selectedRating, comment: document.getElementById('reviewComment').value });
+      showToast('✅ تم التقييم', 'success');
       loadDoctor();
-    } catch (err) {
-      alertEl.innerHTML = `<div class="alert alert-error">❌ ${err.message}</div>`;
-    }
+    } catch (err) { showToast(err.message, 'error'); }
   };
 
   loadDoctor();
 </script>
+</script>
+
+<div id="printableReceipt"></div>
+
 </body>
 </html>

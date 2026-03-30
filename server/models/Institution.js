@@ -26,6 +26,10 @@ const InstitutionSchema = new mongoose.Schema({
   isVerified: { type: Boolean, default: false },
   totalRating: { type: Number, default: 0 },
   totalReviews: { type: Number, default: 0 },
+  location: {
+    lat: { type: Number, default: 33.3152 },
+    lng: { type: Number, default: 44.3661 }
+  },
 }, { timestamps: true });
 
 module.exports = mongoose.model('Institution', InstitutionSchema);

@@ -34,11 +34,21 @@
     @media(max-width:480px){ .auth-card{ padding: 28px 18px; } .two-col{ grid-template-columns:1fr; } }
   </style>
 </head>
-<body>
-<div class="auth-card">
+<nav class="navbar scrolled" style="background:rgba(255,255,255,0.98)!important;backdrop-filter:blur(20px);">
+  <div class="nav-inner">
+    <a class="nav-logo" href="/" style="color:var(--primary)" data-i18n="app_name">🏥 طبيبي<span>.</span></a>
+    <div class="lang-switcher" style="display:flex; gap:10px; margin-right:20px;">
+      <button class="lang-btn" onclick="setLanguage('ar')" style="border:none; background:none; cursor:pointer; font-weight:800; color:var(--primary)">العربية</button>
+      <button class="lang-btn" onclick="setLanguage('ku')" style="border:none; background:none; cursor:pointer; font-weight:800; color:var(--primary)">کوردی</button>
+      <button class="lang-btn" onclick="setLanguage('en')" style="border:none; background:none; cursor:pointer; font-weight:800; color:var(--primary)">EN</button>
+    </div>
+  </div>
+</nav>
+
+<div class="auth-card" style="margin-top:80px">
   <div class="auth-logo">
-    <a href="/">🏥 طبيبي<span>.</span></a>
-    <p style="color:var(--text-medium);font-size:0.9rem;margin-top:6px;">إنشاء حساب جديد مجاناً</p>
+    <a href="/" data-i18n="app_name">🏥 طبيبي<span>.</span></a>
+    <p style="color:var(--text-medium);font-size:0.9rem;margin-top:6px;" data-i18n="register">إنشاء حساب جديد مجاناً</p>
   </div>
 
   <div id="alertBox"></div>
@@ -47,15 +57,15 @@
   <div class="role-selector">
     <button class="role-btn" id="role-patient" onclick="selectRole('patient')">
       <span class="role-icon">👤</span>
-      <span class="role-name">مريض / زبون</span>
+      <span class="role-name" data-i18n="patient">مريض / زبون</span>
     </button>
     <button class="role-btn" id="role-doctor" onclick="selectRole('doctor')">
       <span class="role-icon">👨‍⚕️</span>
-      <span class="role-name">طبيب</span>
+      <span class="role-name" data-i18n="doctor">طبيب</span>
     </button>
     <button class="role-btn" id="role-institution" onclick="selectRole('institution')">
       <span class="role-icon">🏥</span>
-      <span class="role-name">مؤسسة طبية</span>
+      <span class="role-name" data-i18n="institution">مؤسسة طبية</span>
     </button>
   </div>
 
@@ -171,7 +181,26 @@
   </form>
 </div>
 
+<!-- Verification Modal -->
+<div id="verifyModal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(26,107,138,0.7);z-index:9999;backdrop-filter:blur(8px);align-items:center;justify-content:center;padding:20px">
+  <div class="auth-card" style="margin:0;max-width:420px;text-align:center;box-shadow:0 20px 50px rgba(0,0,0,0.3)">
+    <div style="font-size:3.5rem;margin-bottom:20px">📱</div>
+    <h2 style="margin-bottom:10px;color:var(--primary);font-weight:800">تأكيد رقم الهاتف</h2>
+    <p style="color:var(--text-medium);margin-bottom:24px;line-height:1.6">أدخل رمز التحقق المكون من 6 أرقام المرسل إلى هاتفك <br><span id="targetPhone" style="font-weight:800;color:var(--primary)"></span></p>
+    <div class="form-group" style="margin-bottom:24px">
+      <input type="text" class="form-control" id="otpCode" placeholder="******" 
+             style="text-align:center;font-size:2rem;letter-spacing:12px;font-weight:900;height:65px;border-width:3px" maxlength="6">
+    </div>
+    <div id="verifyAlert"></div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <button class="btn btn-primary btn-full btn-lg" onclick="confirmOTP()" id="verifySubmitBtn">تفعيل الحساب ✅</button>
+      <button class="btn btn-outline btn-full" onclick="resendOTP()" id="resendBtn">إعادة إرسال الرمز</button>
+    </div>
+  </div>
+</div>
+
 <script src="/js/api.js"></script>
+<script src="/js/i18n.js"></script>
 <script>
   redirectIfLoggedIn();
   let selectedRole = 'patient';
@@ -213,12 +242,17 @@
   };
   loadData();
 
+  let currentPhone = '';
+
   const handleRegister = async (e) => {
     e.preventDefault();
     const alertBox = document.getElementById('alertBox');
     alertBox.innerHTML = '';
     const password = document.getElementById('password').value;
     const confirmPassword = document.getElementById('confirmPassword').value;
+    let phone = document.getElementById('phone').value.trim();
+    if (phone.startsWith('0')) phone = '+964' + phone.slice(1);
+    else if (!phone.startsWith('+')) phone = '+964' + phone;
 
     if (password !== confirmPassword) {
       alertBox.innerHTML = '<div class="alert alert-error">❌ كلمتا المرور غير متطابقتين</div>';
@@ -232,7 +266,7 @@
     const body = {
       name: document.getElementById('name').value,
       email: document.getElementById('email').value,
-      phone: document.getElementById('phone').value,
+      phone,
       password,
       role: selectedRole,
       governorate: document.getElementById('governorate').value,
@@ -250,15 +284,57 @@
     try {
       const data = await api('POST', '/auth/register', body);
       setAuth(data.token, data.user);
-      showToast('تم إنشاء حسابك بنجاح! 🎉', 'success');
-      setTimeout(() => {
-        const dashboards = { doctor: '/dashboard-doctor.html', institution: '/dashboard-institution.html', patient: '/dashboard-patient.html' };
-        window.location = dashboards[data.user.role] || '/dashboard-patient.html';
-      }, 800);
+      
+      // Open OTP Modal instead of redirect
+      currentPhone = phone;
+      document.getElementById('targetPhone').textContent = phone;
+      document.getElementById('verifyModal').style.display = 'flex';
+      showToast('تم إنشاء الحساب! يرجى إدخال الرمز المرسل لهاتفك 📱', 'success');
     } catch (err) {
       alertBox.innerHTML = `<div class="alert alert-error">❌ ${err.message}</div>`;
       btn.disabled = false;
       btn.textContent = 'إنشاء الحساب';
+    }
+  };
+
+  const confirmOTP = async () => {
+    const code = document.getElementById('otpCode').value;
+    const alertBox = document.getElementById('verifyAlert');
+    const btn = document.getElementById('verifySubmitBtn');
+    
+    if (code.length < 6) return;
+    
+    btn.disabled = true;
+    btn.textContent = 'جاري التحقق...';
+    
+    try {
+      await api('POST', '/auth/verify-otp', { phone: currentPhone, code });
+      showToast('تم تفعيل حسابك بنجاح! 🎉', 'success', 5000);
+      
+      setTimeout(() => {
+        const dashboards = { doctor: '/dashboard-doctor.html', institution: '/dashboard-institution.html', patient: '/dashboard-patient.html' };
+        const user = getUser();
+        window.location = dashboards[user.role] || '/dashboard-patient.html';
+      }, 1000);
+    } catch (err) {
+      alertBox.innerHTML = `<div class="alert alert-error">❌ ${err.message}</div>`;
+      btn.disabled = false;
+      btn.textContent = 'تفعيل الحساب ✅';
+    }
+  };
+
+  const resendOTP = async () => {
+    const btn = document.getElementById('resendBtn');
+    btn.disabled = true;
+    btn.textContent = 'جاري الإرسال...';
+    try {
+      await api('POST', '/auth/send-otp', { phone: currentPhone });
+      showToast('تم إعادة إرسال الرمز 📱', 'success');
+      setTimeout(() => { btn.disabled = false; btn.textContent = 'إعادة إرسال الرمز'; }, 30000);
+    } catch (err) {
+      showToast('❌ فشل في إعادة الإرسال', 'error');
+      btn.disabled = false;
+      btn.textContent = 'إعادة إرسال الرمز';
     }
   };
 </script>

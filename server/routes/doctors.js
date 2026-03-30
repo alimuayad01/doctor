@@ -10,11 +10,20 @@ const upload = require('../middleware/upload');
 // @route GET /api/doctors  (Public - Search)
 router.get('/', async (req, res) => {
   try {
-    const { governorate, department, specialization, name, page = 1, limit = 12 } = req.query;
+    const { governorate, department, specialization, name, page = 1, limit = 12, lat, lng } = req.query;
     const query = { isAcceptingAppointments: true };
+    
     if (governorate) query.governorate = governorate;
     if (department) query.department = department;
     if (specialization) query.specialization = new RegExp(specialization, 'i');
+
+    if (name) {
+      const matchingUsers = await User.find({ 
+        name: new RegExp(name, 'i'),
+        role: 'doctor' 
+      }).select('_id');
+      query.user = { $in: matchingUsers.map(u => u._id) };
+    }
 
     let doctors = await Doctor.find(query)
       .populate('user', 'name avatar phone')
@@ -23,13 +32,42 @@ router.get('/', async (req, res) => {
       .limit(parseInt(limit))
       .sort({ averageRating: -1, totalAppointments: -1 });
 
-    // Filter by name
-    if (name) {
-      doctors = doctors.filter(d => d.user && d.user.name.includes(name));
+    // Sort by distance if user coords provided
+    if (lat && lng) {
+      const uLat = parseFloat(lat);
+      const uLng = parseFloat(lng);
+      const haversine = (lat1, lon1, lat2, lon2) => {
+        const R = 6371;
+        const dLat = (lat2 - lat1) * Math.PI / 180;
+        const dLon = (lon2 - lon1) * Math.PI / 180;
+        const a = Math.sin(dLat/2)**2 +
+                  Math.cos(lat1*Math.PI/180) * Math.cos(lat2*Math.PI/180) * Math.sin(dLon/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      };
+      doctors = doctors.map(d => {
+        const dist = d.location?.lat ? haversine(uLat, uLng, d.location.lat, d.location.lng) : 9999;
+        return { ...d.toObject(), distance: Math.round(dist * 10) / 10 };
+      }).sort((a, b) => a.distance - b.distance);
     }
 
     const total = await Doctor.countDocuments(query);
-    res.json({ success: true, doctors, total, pages: Math.ceil(total / limit) });
+    
+    let suggestions = [];
+    if (total === 0 && name && name.length > 2) {
+      const partialName = name.substring(0, Math.ceil(name.length * 0.7));
+      const similarUsers = await User.find({ 
+        name: new RegExp(partialName, 'i'), role: 'doctor' 
+      }).limit(5).select('name');
+      suggestions = similarUsers.map(u => u.name);
+    }
+
+    res.json({ 
+      success: true, 
+      doctors, 
+      total, 
+      pages: Math.ceil(total / limit),
+      suggestions: suggestions.length > 0 ? suggestions : undefined
+    });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }
@@ -126,7 +164,8 @@ router.put('/profile', protect, authorize('doctor'), upload.fields([
 
     const {
       bio, clinicName, clinicAddress, clinicPhone, consultationFee,
-      specialization, department, address, isAcceptingAppointments
+      specialConsultationFee, emergencyConsultationFee, additionalPhones,
+      specialization, department, address, isAcceptingAppointments, autoApprove
     } = req.body;
 
     if (bio) doctor.bio = bio;
@@ -134,6 +173,10 @@ router.put('/profile', protect, authorize('doctor'), upload.fields([
     if (clinicAddress) doctor.clinicAddress = clinicAddress;
     if (clinicPhone) doctor.clinicPhone = clinicPhone;
     if (consultationFee !== undefined) doctor.consultationFee = consultationFee;
+    if (specialConsultationFee !== undefined) doctor.specialConsultationFee = specialConsultationFee;
+    if (emergencyConsultationFee !== undefined) doctor.emergencyConsultationFee = emergencyConsultationFee;
+    if (additionalPhones) doctor.additionalPhones = JSON.parse(additionalPhones);
+    if (autoApprove) doctor.autoApprove = JSON.parse(autoApprove);
     if (specialization) doctor.specialization = specialization;
     if (department) doctor.department = department;
     if (address) doctor.address = address;
@@ -177,6 +220,27 @@ router.put('/schedule', protect, authorize('doctor'), async (req, res) => {
 
     await doctor.save();
     res.json({ success: true, message: 'تم تحديث الجدول بنجاح', schedule: doctor.schedule });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// @route PUT /api/doctors/location  (Doctor only)
+router.put('/location', protect, authorize('doctor'), async (req, res) => {
+  try {
+    const { lat, lng } = req.body;
+    if (!lat || !lng)
+      return res.status(400).json({ success: false, message: 'الإحداثيات مطلوبة' });
+
+    const doctor = await Doctor.findOneAndUpdate(
+      { user: req.user._id },
+      { location: { lat: parseFloat(lat), lng: parseFloat(lng) } },
+      { new: true }
+    );
+    if (!doctor)
+      return res.status(404).json({ success: false, message: 'ملف الطبيب غير موجود' });
+
+    res.json({ success: true, message: 'تم حفظ موقع العيادة ✅', location: doctor.location });
   } catch (err) {
     res.status(500).json({ success: false, message: err.message });
   }

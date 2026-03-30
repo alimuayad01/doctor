@@ -350,28 +350,42 @@
   // Load departments
   const loadDepts = async () => {
     try {
-      const { departments } = await api('GET', '/departments');
+      const resp = await api('GET', '/departments');
+      const departments = resp.departments || [];
       const grid = document.getElementById('deptsGrid');
       const select = document.getElementById('deptSearch');
-      grid.innerHTML = departments.slice(0, 10).map(d => `
-        <div class="dept-card" onclick="window.location='/search.html?dept=${encodeURIComponent(d.name)}'">
-          <div class="dept-icon">${d.icon}</div>
-          <div class="dept-name">${d.name}</div>
-        </div>
-      `).join('');
-      departments.forEach(d => {
-        select.innerHTML += `<option value="${d.name}">${d.icon} ${d.name}</option>`;
-      });
-    } catch {}
+      
+      if (departments.length > 0) {
+        grid.innerHTML = departments.slice(0, 10).map(d => `
+          <div class="dept-card" onclick="window.location='/search.html?dept=${encodeURIComponent(d.name)}'">
+            <div class="dept-icon">${d.icon}</div>
+            <div class="dept-name">${d.name}</div>
+          </div>
+        `).join('');
+        
+        departments.forEach(d => {
+          const opt = document.createElement('option');
+          opt.value = d.name; opt.textContent = `${d.icon} ${d.name}`;
+          select.appendChild(opt);
+        });
+      }
+    } catch (err) { console.error('LoadDepts Error:', err); }
   };
 
   // Load governorates
   const loadGovs = async () => {
     try {
-      const { governorates } = await api('GET', '/departments/governorates');
+      const resp = await api('GET', '/departments/governorates');
+      const governorates = resp.governorates || [];
       const sel = document.getElementById('govSearch');
-      governorates.forEach(g => { sel.innerHTML += `<option value="${g}">${g}</option>`; });
-    } catch {}
+      if (governorates.length > 0) {
+        governorates.forEach(g => { 
+          const opt = document.createElement('option');
+          opt.value = g; opt.textContent = g;
+          sel.appendChild(opt); 
+        });
+      }
+    } catch (err) { console.error('LoadGovs Error:', err); }
   };
 
   // Load featured doctors

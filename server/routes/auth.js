@@ -1,9 +1,11 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const User = require('../models/User');
 const Doctor = require('../models/Doctor');
 const Institution = require('../models/Institution');
 const { protect } = require('../middleware/auth');
+const SMSService = require('../utils/sms');
 
 // Helper to send token response
 const sendTokenResponse = (user, statusCode, res) => {
@@ -25,12 +27,20 @@ const sendTokenResponse = (user, statusCode, res) => {
 // @route POST /api/auth/register
 router.post('/register', async (req, res, next) => {
   try {
-    const { name, email, phone, password, role, governorate, specialization, department, institutionName, institutionType } = req.body;
+    let { name, email, phone, password, role, governorate, specialization, department, institutionName, institutionType } = req.body;
 
     if (!phone) return res.status(400).json({ success: false, message: 'رقم الهاتف مطلوب' });
+    
+    // Normalize Iraqi Phone Number: +964XXXXXXXXXX
+    phone = phone.replace(/[\s-]/g, ''); // إزالة المسافات
+    if (phone.startsWith('00964')) phone = '+' + phone.slice(2);
+    if (phone.startsWith('0')) phone = '+964' + phone.slice(1);
+    if (!phone.startsWith('+')) phone = '+964' + phone;
+
+    const phoneHash = crypto.createHash('sha256').update(phone).digest('hex');
 
     // Check duplicate phone
-    const existingPhone = await User.findOne({ phone });
+    const existingPhone = await User.findOne({ phoneHash });
     if (existingPhone) return res.status(400).json({ success: false, message: 'رقم الهاتف مستخدم مسبقاً' });
 
     // Check duplicate email (if provided)
@@ -64,6 +74,14 @@ router.post('/register', async (req, res, next) => {
       });
     }
 
+    // Generate and send OTP for first-time verification
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationCode = otp;
+    user.verificationExpires = Date.now() + 10 * 60 * 1000;
+    await user.save();
+    
+    await SMSService.sendVerificationOTP(phone, otp);
+
     sendTokenResponse(user, 201, res);
   } catch (err) {
     next(err);
@@ -77,9 +95,13 @@ router.post('/login', async (req, res, next) => {
     if (!identifier || !password)
       return res.status(400).json({ success: false, message: 'رقم الهاتف/البريد وكلمة المرور مطلوبان' });
 
-    // Find user by email OR phone
+    // Handle login by email OR phoneHash
+    const identifierHash = crypto.createHash('sha256').update(identifier).digest('hex');
     const user = await User.findOne({ 
-      $or: [{ email: identifier.toLowerCase() }, { phone: identifier }] 
+      $or: [
+        { email: identifier.toLowerCase() },
+        { phoneHash: identifierHash }
+      ] 
     }).select('+password');
 
     if (!user) return res.status(401).json({ success: false, message: 'بيانات الدخول غير صحيحة' });
@@ -121,6 +143,58 @@ router.put('/notifications/read', protect, async (req, res, next) => {
   try {
     await User.findByIdAndUpdate(req.user.id, { $set: { 'notifications.$[].isRead': true } });
     res.json({ success: true, message: 'تم تعليم الإشعارات كمقروءة' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// @route POST /api/auth/send-otp
+router.post('/send-otp', async (req, res, next) => {
+  try {
+    const { phone } = req.body;
+    if (!phone) return res.status(400).json({ success: false, message: 'رقم الهاتف مطلوب' });
+    
+    const phoneHash = crypto.createHash('sha256').update(phone).digest('hex');
+    const user = await User.findOne({ phoneHash });
+    
+    if (!user) return res.status(404).json({ success: false, message: 'المستخدم غير موجود' });
+    if (user.isPhoneVerified) return res.status(400).json({ success: false, message: 'الهاتف مفعل مسبقاً' });
+
+    // Generate 6-digit OTP
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    user.verificationCode = otp;
+    user.verificationExpires = Date.now() + 10 * 60 * 1000; // 10 mins
+    await user.save();
+
+    await SMSService.sendVerificationOTP(phone, otp);
+    res.json({ success: true, message: 'تم إرسال رمز التحقق بنجاح' });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// @route POST /api/auth/verify-otp
+router.post('/verify-otp', async (req, res, next) => {
+  try {
+    const { phone, code } = req.body;
+    if (!phone || !code) return res.status(400).json({ success: false, message: 'رقم الهاتف والرمز مطلوبان' });
+
+    const phoneHash = crypto.createHash('sha256').update(phone).digest('hex');
+    const user = await User.findOne({ phoneHash }).select('+verificationCode +verificationExpires');
+
+    if (!user) return res.status(404).json({ success: false, message: 'المستخدم غير موجود' });
+    if (user.isPhoneVerified) return res.status(400).json({ success: false, message: 'الهاتف مفعل مسبقاً' });
+    
+    if (user.verificationCode !== code || user.verificationExpires < Date.now()) {
+      return res.status(400).json({ success: false, message: 'الرمز غير صحيح أو منتهي الصلاحية' });
+    }
+
+    user.isPhoneVerified = true;
+    user.verificationCode = undefined;
+    user.verificationExpires = undefined;
+    await user.save();
+
+    res.json({ success: true, message: 'تم تفعيل رقم الهاتف بنجاح ✅' });
   } catch (err) {
     next(err);
   }

@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package backup;
+
+service BackupService {
+  rpc TriggerBackup (BackupRequest) returns (BackupResponse) {}
+  rpc GetStats (Empty) returns (StatsResponse) {}
+}
+
+message BackupRequest {
+  string prefix = 1;
+}
+
+message BackupResponse {
+  bool success = 1;
+  string message = 2;
+  string fileName = 3;
+}
+
+message Empty {}
+
+message StatsResponse {
+  int32 totalUsers = 1;
+  int32 totalAppointments = 2;
+  string lastBackup = 3;
+}

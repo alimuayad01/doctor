@@ -18,6 +18,29 @@ router.get('/my', protect, async (req, res) => {
   }
 });
 
+// @route GET /api/appointments/booked/:doctorId (Public - for booking)
+router.get('/booked/:doctorId', async (req, res) => {
+  try {
+    const { date } = req.query;
+    if (!date) return res.status(400).json({ success: false, message: 'التاريخ مطلوب' });
+
+    const d = new Date(date);
+    const query = {
+      doctor: req.params.doctorId,
+      date: {
+        $gte: new Date(d.setHours(0,0,0,0)),
+        $lte: new Date(d.setHours(23,59,59,999))
+      },
+      status: { $nin: ['cancelled', 'no_show'] }
+    };
+
+    const appointments = await Appointment.find(query).select('startTime endTime');
+    res.json({ success: true, bookedSlots: appointments.map(a => a.startTime) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // @route GET /api/appointments/doctor  (Doctor)
 router.get('/doctor', protect, authorize('doctor'), async (req, res) => {
   try {
@@ -45,12 +68,26 @@ router.get('/doctor', protect, authorize('doctor'), async (req, res) => {
   }
 });
 
+const multer = require('multer');
+const path = require('path');
+
+// Multer Config
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, 'public/uploads/cases/'),
+  filename: (req, file, cb) => cb(null, `case-${Date.now()}${path.extname(file.originalname)}`)
+});
+const upload = multer({ 
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+});
+
 // @route POST /api/appointments  (Patient book)
-router.post('/', protect, authorize('patient'), async (req, res) => {
+router.post('/', protect, authorize('patient'), upload.single('caseImage'), async (req, res) => {
   try {
-    const { doctorId, date, startTime, type, notes } = req.body;
+    const { doctorId, date, startTime, type, notes, priority, paymentMethod } = req.body;
     const doctor = await Doctor.findById(doctorId).populate('user', 'name');
     if (!doctor) return res.status(404).json({ success: false, message: 'الطبيب غير موجود' });
+    
     if (!doctor.isAcceptingAppointments)
       return res.status(400).json({ success: false, message: 'الطبيب لا يقبل مواعيد حالياً' });
 
@@ -60,15 +97,14 @@ router.post('/', protect, authorize('patient'), async (req, res) => {
     const endMinutes = h * 60 + m + slotDuration;
     const endTime = `${String(Math.floor(endMinutes / 60)).padStart(2,'0')}:${String(endMinutes % 60).padStart(2,'0')}`;
 
-    // Check if slot already booked
-    const existingAppointment = await Appointment.findOne({
-      doctor: doctorId,
-      date: new Date(date),
-      startTime,
-      status: { $nin: ['cancelled', 'no_show'] }
-    });
-    if (existingAppointment)
-      return res.status(400).json({ success: false, message: 'هذا الوقت محجوز مسبقاً' });
+    // Calculate Price based on priority
+    let price = doctor.consultationFee || 25000;
+    if (priority === 'urgent') price = doctor.specialConsultationFee || (price + 5000);
+    if (priority === 'emergency') price = doctor.emergencyConsultationFee || (price + 10000);
+
+    // Auto-approve logic
+    const isAutoApprove = (doctor.autoApprove && doctor.autoApprove[priority || 'normal']);
+    const status = isAutoApprove ? 'confirmed' : 'pending';
 
     const appointment = await Appointment.create({
       patient: req.user._id,
@@ -77,35 +113,78 @@ router.post('/', protect, authorize('patient'), async (req, res) => {
       startTime,
       endTime,
       duration: slotDuration,
-      type: type || 'كشف',
+      type: type || 'اعتيادي',
+      priority: priority || 'normal',
       notes,
-      price: doctor.consultationFee,
+      price,
+      paymentMethod: paymentMethod || 'cash',
+      caseImage: req.file ? `/uploads/cases/${req.file.filename}` : null,
+      status
     });
 
-    // Update doctor stats
     await Doctor.findByIdAndUpdate(doctorId, { $inc: { totalAppointments: 1 } });
 
-    // Notify patient
-    await addNotification(req.user._id, {
-      message: `✅ تم تأكيد موعدك مع د. ${doctor.user.name} بتاريخ ${new Date(date).toLocaleDateString('ar-IQ')} الساعة ${startTime}`,
-      type: 'appointment',
-      data: { appointmentId: appointment._id }
-    });
-
     // Notify doctor
+    const notifMsg = isAutoApprove 
+      ? `✅ تم قبول موعد تلقائياً: ${req.user.name} (${priority || 'اعتيادي'})`
+      : `📅 طلب حجز جديد بحاجة لموافقتك: ${req.user.name} (${priority || 'اعتيادي'})`;
+      
     await addNotification(doctor.user._id, {
-      message: `📅 موعد جديد: ${req.user.name} بتاريخ ${new Date(date).toLocaleDateString('ar-IQ')} الساعة ${startTime}`,
+      message: notifMsg,
       type: 'appointment',
       data: { appointmentId: appointment._id }
     });
 
     res.status(201).json({ success: true, appointment });
   } catch (err) {
-    if (err.code === 11000)
-      return res.status(400).json({ success: false, message: 'هذا الوقت محجوز مسبقاً' });
     res.status(500).json({ success: false, message: err.message });
   }
 });
+
+// @route PUT /api/appointments/:id/approve (Doctor)
+router.put('/:id/approve', protect, authorize('doctor'), async (req, res) => {
+    try {
+      const appointment = await Appointment.findById(req.params.id).populate('doctor').populate('patient');
+      if (!appointment) return res.status(404).json({ success: false, message: 'الموعد غير موجود' });
+      
+      const doctorProfile = await Doctor.findOne({ user: req.user._id });
+      if (appointment.doctor._id.toString() !== doctorProfile._id.toString())
+        return res.status(403).json({ success: false, message: 'غير مصرح لك بالموافقة على هذا الموعد' });
+  
+      appointment.status = 'confirmed';
+      await appointment.save();
+  
+      await addNotification(appointment.patient._id, {
+        message: `✅ تمت الموافقة على حجزك مع د. ${req.user.name} بتاريخ ${new Date(appointment.date).toLocaleDateString('ar-IQ')} الساعة ${appointment.startTime}`,
+        type: 'appointment',
+        data: { appointmentId: appointment._id }
+      });
+  
+      res.json({ success: true, message: 'تمت الموافقة على الموعد', appointment });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
+  
+  // @route PUT /api/appointments/:id/reject (Doctor)
+  router.put('/:id/reject', protect, authorize('doctor'), async (req, res) => {
+    try {
+      const appointment = await Appointment.findById(req.params.id);
+      if (!appointment) return res.status(404).json({ success: false, message: 'الموعد غير موجود' });
+  
+      appointment.status = 'rejected';
+      await appointment.save();
+  
+      await addNotification(appointment.patient, {
+        message: `❌ عذراً، تم رفض طلب حجزك مع د. ${req.user.name}. يرجى محاولة حجز موعد آخر.`,
+        type: 'appointment'
+      });
+  
+      res.json({ success: true, message: 'تم رفض الموعد' });
+    } catch (err) {
+      res.status(500).json({ success: false, message: err.message });
+    }
+  });
 
 // @route PUT /api/appointments/:id/cancel
 router.put('/:id/cancel', protect, async (req, res) => {

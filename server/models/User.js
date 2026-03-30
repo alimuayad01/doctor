@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { encrypt } = require('../utils/crypto');
 
 const UserSchema = new mongoose.Schema({
   name: { type: String, required: [true, 'الاسم مطلوب'], trim: true },
@@ -14,14 +16,22 @@ const UserSchema = new mongoose.Schema({
   phone: {
     type: String,
     required: [true, 'رقم الهاتف مطلوب'],
-    unique: [true, 'رقم الهاتف مستخدم مسبقاً'],
     trim: true
+  },
+  additionalPhones: [{ type: String, trim: true }],
+  phoneHash: {
+    type: String,
+    unique: true,
+    sparse: true
   },
   password: { type: String, required: [true, 'كلمة المرور مطلوبة'], minlength: 6, select: false },
   role: { type: String, enum: ['patient', 'doctor', 'institution', 'admin'], default: 'patient' },
   governorate: { type: String },
   avatar: { type: String, default: null },
-  isVerified: { type: Boolean, default: false },
+  isVerified: { type: Boolean, default: false }, // General verification (e.g. for doctors)
+  isPhoneVerified: { type: Boolean, default: false },
+  verificationCode: { type: String, select: false },
+  verificationExpires: { type: Date, select: false },
   isActive: { type: Boolean, default: true },
   notifications: [{
     message: String,
@@ -33,12 +43,20 @@ const UserSchema = new mongoose.Schema({
   fcmToken: { type: String, default: null },
 }, { timestamps: true });
 
-// Hash password before save
-UserSchema.pre('save', async function () {
-  if (!this.isModified('password')) return;
+// Actions before save
+UserSchema.pre('save', async function (next) {
+  if (this.isModified('phone')) {
+    // 1. Create searchable hash for uniqueness check
+    this.phoneHash = crypto.createHash('sha256').update(this.phone).digest('hex');
+    // 2. Encrypt actual phone with random IV
+    this.phone = encrypt(this.phone);
+  }
 
-  const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
+  if (this.isModified('password')) {
+    const salt = await bcrypt.genSalt(10);
+    this.password = await bcrypt.hash(this.password, salt);
+  }
+  next();
 });
 
 // Match password

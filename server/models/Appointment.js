@@ -10,26 +10,27 @@ const AppointmentSchema = new mongoose.Schema({
   endTime: { type: String, required: true },   // "10:30"
   duration: { type: Number, default: 30 },     // minutes
 
-  type: { type: String, enum: ['كشف', 'متابعة', 'تحليل', 'استشارة'], default: 'كشف' },
-  notes: { type: String, maxlength: 500 },
-
+  type: { 
+    type: String, 
+    enum: ['اعتيادي', 'مستعجل', 'طارئ', 'كشف', 'متابعة', 'تحليل', 'استشارة'], 
+    default: 'اعتيادي' 
+  },
+  priority: { type: String, enum: ['normal', 'urgent', 'emergency'], default: 'normal' },
   status: {
     type: String,
-    enum: ['pending', 'confirmed', 'cancelled', 'completed', 'no_show'],
-    default: 'confirmed'
+    enum: ['pending', 'approved', 'confirmed', 'cancelled', 'completed', 'no_show', 'rejected'],
+    default: 'pending'
   },
+  caseImage: { type: String }, // Path to uploaded image of condition
+  paymentMethod: { type: String, enum: ['cash', 'mastercard', 'visa', 'zaincash'], default: 'cash' },
+  
+  // Future Systems
+  insuranceProvider: { type: String, default: null },
+  insuranceId: { type: String, default: null },
+  discountCode: { type: String, default: null },
+  discountAmount: { type: Number, default: 0 },
 
-  cancellationReason: { type: String },
-  cancelledBy: { type: String, enum: ['patient', 'doctor', 'institution', 'system'] },
-
-  // Notification tracking
-  reminderDaySent: { type: Boolean, default: false },
-  reminderHourSent: { type: Boolean, default: false },
-
-  // Lab result notification
-  labResultReady: { type: Boolean, default: false },
-  labResultNotes: { type: String },
-
+  notes: { type: String, maxlength: 500 },
   price: { type: Number, default: 0 },
   isPaid: { type: Boolean, default: false },
 }, { timestamps: true });

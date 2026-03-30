@@ -19,6 +19,14 @@
     .appt-actions { display: flex; gap: 8px; flex-shrink: 0; }
     .notif-item { padding: 14px 16px; background: white; border-radius: var(--radius-sm); border: 1px solid var(--border); margin-bottom: 10px; display: flex; gap: 12px; align-items: flex-start; }
     .notif-item.unread { border-right: 3px solid var(--primary); background: rgba(26,107,138,0.02); }
+    
+    /* Print Styles */
+    @media print {
+      body * { visibility: hidden; }
+      #printableReceipt, #printableReceipt * { visibility: visible; }
+      #printableReceipt { position: absolute; left: 0; top: 0; width: 100%; border: none; padding: 20px; }
+    }
+    #printableReceipt { display: none; }
     @media(max-width:600px){ .appt-card{flex-wrap:wrap;} .appt-actions{width:100%;} }
   </style>
 </head>
@@ -59,84 +67,87 @@
 
   <!-- Main Content -->
   <main class="main-content">
-    <!-- Home Section -->
-    <section id="section-home">
-      <div class="page-header">
-        <h1 class="page-title" id="welcomeTitle">مرحباً 👋</h1>
-        <p class="page-subtitle">إليك ملخص حسابك اليوم</p>
-      </div>
-      <div class="stats-grid">
-        <div class="stat-card">
-          <div class="stat-icon blue">📅</div>
-          <div><div class="stat-value" id="statsTotal">0</div><div class="stat-label">إجمالي المواعيد</div></div>
+    <div class="dashboard-container">
+      <!-- Home Section -->
+      <section id="section-home">
+        <div class="page-header">
+          <h1 class="page-title" id="welcomeTitle">مرحباً 👋</h1>
+          <p class="page-subtitle">إليك ملخص حسابك اليوم</p>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon green">✅</div>
-          <div><div class="stat-value" id="statsConfirmed">0</div><div class="stat-label">مؤكدة</div></div>
+        <div class="stats-grid">
+          <div class="stat-card">
+            <div class="stat-icon blue">📅</div>
+            <div><div class="stat-value" id="statsTotal">0</div><div class="stat-label">إجمالي المواعيد</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon green">✅</div>
+            <div><div class="stat-value" id="statsConfirmed">0</div><div class="stat-label">مؤكدة</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon orange">🔬</div>
+            <div><div class="stat-value" id="statsLabs">0</div><div class="stat-label">تحاليل مطلوبة</div></div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-icon red">🔔</div>
+            <div><div class="stat-value" id="statsNotifs">0</div><div class="stat-label">إشعارات جديدة</div></div>
+          </div>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon orange">🔬</div>
-          <div><div class="stat-value" id="statsLabs">0</div><div class="stat-label">تحاليل مطلوبة</div></div>
+
+        <!-- Upcoming appointments -->
+        <div class="card">
+          <h3 style="margin-bottom:16px;color:var(--primary)">📅 مواعيدي القادمة</h3>
+          <div id="upcomingAppts"><div class="spinner"></div></div>
         </div>
-        <div class="stat-card">
-          <div class="stat-icon red">🔔</div>
-          <div><div class="stat-value" id="statsNotifs">0</div><div class="stat-label">إشعارات جديدة</div></div>
+      </section>
+
+      <!-- Appointments Section -->
+      <section id="section-appointments" style="display:none">
+        <div class="page-header">
+          <h1 class="page-title">📅 مواعيدي جميعها</h1>
         </div>
-      </div>
+        <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+          <button class="btn btn-primary btn-sm" onclick="filterAppts('all')">الكل</button>
+          <button class="btn btn-outline btn-sm" onclick="filterAppts('confirmed')">المؤكدة</button>
+          <button class="btn btn-outline btn-sm" onclick="filterAppts('completed')">المكتملة</button>
+          <button class="btn btn-outline btn-sm" onclick="filterAppts('cancelled')">الملغاة</button>
+          <button class="btn btn-accent btn-sm" onclick="window.location='/search.html'" style="margin-right:auto">+ حجز موعد جديد</button>
+        </div>
+        <div id="allAppts"><div class="spinner"></div></div>
+      </section>
 
-      <!-- Upcoming appointments -->
-      <div class="card">
-        <h3 style="margin-bottom:16px;color:var(--primary)">📅 مواعيدي القادمة</h3>
-        <div id="upcomingAppts"><div class="spinner"></div></div>
-      </div>
-    </section>
+      <!-- Labs Section -->
+      <section id="section-labs" style="display:none">
+        <div class="page-header">
+          <h1 class="page-title">🔬 تحاليلي</h1>
+        </div>
+        <a href="/labs.html" class="btn btn-primary" style="margin-bottom:20px;display:inline-flex">+ حجز تحليل جديد</a>
+        <div id="labOrders"><div class="spinner"></div></div>
+      </section>
 
-    <!-- Appointments Section -->
-    <section id="section-appointments" style="display:none">
-      <div class="page-header">
-        <h1 class="page-title">📅 مواعيدي جميعها</h1>
-      </div>
-      <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
-        <button class="btn btn-primary btn-sm" onclick="filterAppts('all')">الكل</button>
-        <button class="btn btn-outline btn-sm" onclick="filterAppts('confirmed')">المؤكدة</button>
-        <button class="btn btn-outline btn-sm" onclick="filterAppts('completed')">المكتملة</button>
-        <button class="btn btn-outline btn-sm" onclick="filterAppts('cancelled')">الملغاة</button>
-        <button class="btn btn-accent btn-sm" onclick="window.location='/search.html'" style="margin-right:auto">+ حجز موعد جديد</button>
-      </div>
-      <div id="allAppts"><div class="spinner"></div></div>
-    </section>
+      <!-- Notifications Section -->
+      <section id="section-notifications" style="display:none">
+        <div class="page-header">
+          <h1 class="page-title">🔔 الإشعارات</h1>
+          <button class="btn btn-outline btn-sm" onclick="markAllRead()">تعليم الكل كمقروء</button>
+        </div>
+        <div id="notifsList"><div class="spinner"></div></div>
+      </section>
 
-    <!-- Labs Section -->
-    <section id="section-labs" style="display:none">
-      <div class="page-header">
-        <h1 class="page-title">🔬 تحاليلي</h1>
-      </div>
-      <a href="/labs.html" class="btn btn-primary" style="margin-bottom:20px;display:inline-flex">+ حجز تحليل جديد</a>
-      <div id="labOrders"><div class="spinner"></div></div>
-    </section>
-
-    <!-- Notifications Section -->
-    <section id="section-notifications" style="display:none">
-      <div class="page-header">
-        <h1 class="page-title">🔔 الإشعارات</h1>
-        <button class="btn btn-outline btn-sm" onclick="markAllRead()">تعليم الكل كمقروء</button>
-      </div>
-      <div id="notifsList"><div class="spinner"></div></div>
-    </section>
-
-    <!-- Profile Section -->
-    <section id="section-profile" style="display:none">
-      <div class="page-header">
-        <h1 class="page-title">👤 حسابي</h1>
-      </div>
-      <div class="card" style="max-width:560px">
-        <div id="profileInfo"></div>
-      </div>
-    </section>
+      <!-- Profile Section -->
+      <section id="section-profile" style="display:none">
+        <div class="page-header">
+          <h1 class="page-title">👤 حسابي</h1>
+        </div>
+        <div class="card" style="max-width:560px">
+          <div id="profileInfo"></div>
+        </div>
+      </section>
+    </div>
   </main>
 </div>
 
 <script src="/js/api.js"></script>
+<script src="/js/utils.js"></script>
 <script>
   if (!requireAuth()) {}
 
@@ -165,6 +176,9 @@
     try {
       const { appointments } = await api('GET', '/appointments/my');
       allAppointments = appointments;
+      // Save locally for offline access
+      appointments.forEach(a => saveAppointmentLocal(a));
+      
       const upcoming = appointments.filter(a => a.status === 'confirmed' && new Date(a.date) >= new Date()).slice(0, 5);
       const confirmed = appointments.filter(a => a.status === 'confirmed').length;
       document.getElementById('statsTotal').textContent = appointments.length;
@@ -202,10 +216,58 @@
         </div>
       </div>
       <div class="appt-actions">
+        ${a.status === 'confirmed' ? `<button class="btn btn-sm btn-accent" onclick="printReceipt('${a._id}')" title="طباعة الوصل">🖨️</button>` : ''}
         ${a.status === 'confirmed' ? `<button class="btn btn-sm btn-danger" onclick="cancelAppt('${a._id}')">إلغاء</button>` : ''}
         <button class="btn btn-sm btn-outline" onclick="window.location='/doctor-profile.html?id=${a.doctor?._id}'">الطبيب</button>
       </div>
     </div>`;
+  };
+
+  const printReceipt = (apptId) => {
+    const a = allAppointments.find(x => x._id === apptId);
+    if (!a) return;
+    
+    document.getElementById('printableReceipt').innerHTML = `
+        <div style="border:4px solid var(--primary); padding:40px; border-radius:15px; background:white; font-family:'Cairo', sans-serif; direction:rtl;">
+          <div style="text-align:center; border-bottom:2px solid var(--secondary); padding-bottom:20px; margin-bottom:30px;">
+            <h1 style="color:var(--primary); margin:0;">🏥 منصة طبيبي الرقمية</h1>
+            <p style="color:var(--text-light); margin:5px 0;">أمان • سهولة • صحة</p>
+          </div>
+          
+          <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:40px;">
+            <div style="flex:1;">
+              <h2 style="color:var(--primary); margin-bottom:10px;">د. ${a.doctor?.user?.name}</h2>
+              <p style="margin:5px 0; color:var(--text-medium);">${a.doctor?.specialization}</p>
+              <div style="margin-top:15px; font-size:0.95rem;">
+                <p><strong>📍 الموقع:</strong> ${a.doctor?.governorate}</p>
+              </div>
+            </div>
+            <div style="text-align:left; background:var(--secondary); padding:15px; border-radius:10px; min-width:200px;">
+              <p style="margin:5px 0;"><strong>رقم الحجز:</strong> #${a._id.slice(-6).toUpperCase()}</p>
+              <p style="margin:5px 0;"><strong>تاريخ الإصدار:</strong> ${new Date().toLocaleDateString('ar-IQ')}</p>
+            </div>
+          </div>
+          
+          <div style="background:#f8fafc; padding:30px; border-radius:15px; margin-bottom:30px;">
+            <h3 style="border-bottom:1px solid #e2e8f0; padding-bottom:10px; margin-bottom:20px; color:var(--primary);">تفاصيل الموعد</h3>
+            <table style="width:100%; border-collapse:collapse;">
+              <tr><td style="padding:10px 0; color:var(--text-light);">اسم المريض:</td><td style="padding:10px 0; font-weight:700;">${user.name}</td></tr>
+              <tr><td style="padding:10px 0; color:var(--text-light);">تاريخ الموعد:</td><td style="padding:10px 0; font-weight:700;">${new Date(a.date).toLocaleDateString('ar-IQ')}</td></tr>
+              <tr><td style="padding:10px 0; color:var(--text-light);">وقت الموعد:</td><td style="padding:10px 0; font-weight:700;">${a.startTime}</td></tr>
+              <tr><td style="padding:10px 0; color:var(--text-light);">نوع المراجعة:</td><td style="padding:10px 0; font-weight:700;">${a.type}</td></tr>
+              <tr><td style="padding:10px 0; color:var(--text-light);">سعر الكشفية:</td><td style="padding:10px 0; color:var(--primary); font-weight:800; font-size:1.2rem;">${a.price?.toLocaleString() || '0'} د.ع</td></tr>
+            </table>
+          </div>
+          
+          <div style="text-align:center; padding-top:20px; border-top:1px dashed var(--border);">
+            <p style="color:var(--text-light); font-size:0.85rem;">شكراً لاستخدامك منصة طبيبي • يرجى الحضور قبل الموعد بـ 15 دقيقة</p>
+            <div style="margin-top:10px;">
+               <img src="https://api.qrserver.com/v1/create-qr-code/?size=100x100&data=${a._id}" style="width:70px">
+            </div>
+          </div>
+        </div>`;
+        
+    window.print();
   };
 
   const renderAllAppts = () => {
@@ -328,5 +390,8 @@
     showSection(hash);
   }
 </script>
+
+<div id="printableReceipt"></div>
+
 </body>
 </html>

@@ -19,35 +19,43 @@
 </head>
 <body>
 <div class="auth-card">
+  <!-- Lang Switcher inside auth card -->
+  <div style="display:flex; justify-content:center; gap:10px; margin-bottom:20px;">
+    <button onclick="setLanguage('ar')" style="border:none; background:none; cursor:pointer; font-weight:800; color:var(--primary)">العربية</button>
+    <button onclick="setLanguage('ku')" style="border:none; background:none; cursor:pointer; font-weight:800; color:var(--primary)">کوردی</button>
+    <button onclick="setLanguage('en')" style="border:none; background:none; cursor:pointer; font-weight:800; color:var(--primary)">English</button>
+  </div>
+
   <div class="auth-logo">
-    <a href="/">🏥 طبيبي<span>.</span></a>
-    <p>أهلاً بعودتك! سجّل دخولك للمتابعة</p>
+    <a href="/" data-i18n="app_name">🏥 طبيبي<span>.</span></a>
+    <p data-i18n="slogan">أمان • سهولة • صحة</p>
   </div>
 
   <div id="alertBox"></div>
 
   <form id="loginForm" onsubmit="handleLogin(event)">
     <div class="form-group">
-      <label class="form-label">📱 رقم الهاتف أو البريد الإلكتروني</label>
-      <input type="text" class="form-control" id="identifier" placeholder="07X... أو example@email.com" required>
+      <label class="form-label" data-i18n="phone">📱 رقم الهاتف أو البريد الإلكتروني</label>
+      <input type="text" class="form-control" id="identifier" placeholder="07X..." required>
     </div>
     <div class="form-group">
-      <label class="form-label">🔒 كلمة المرور</label>
+      <label class="form-label" data-i18n="password">🔒 كلمة المرور</label>
       <input type="password" class="form-control" id="password" placeholder="••••••••" required>
     </div>
-    <button type="submit" class="btn btn-primary btn-full btn-lg" id="loginBtn" style="margin-bottom:20px;">
+    <button type="submit" class="btn btn-primary btn-full btn-lg" id="loginBtn" style="margin-bottom:20px;" data-i18n="login">
       تسجيل الدخول
     </button>
-    <p style="text-align:center;color:var(--text-medium);font-size:0.9rem;">
+    <p style="text-align:center;color:var(--text-medium);font-size:0.9rem;" data-i18n="register">
       ليس لديك حساب؟ <a href="/register.html" style="color:var(--primary);font-weight:700;">إنشاء حساب جديد</a>
     </p>
     <p style="text-align:center;margin-top:12px;">
-      <a href="/" style="color:var(--text-light);font-size:0.85rem;">← العودة للرئيسية</a>
+      <a href="/" style="color:var(--text-light);font-size:0.85rem;" data-i18n="cancel">← العودة للرئيسية</a>
     </p>
   </form>
 </div>
 
 <script src="/js/api.js"></script>
+<script src="/js/i18n.js"></script>
 <script>
   redirectIfLoggedIn();
 
@@ -59,9 +67,15 @@
     btn.disabled = true;
     btn.textContent = 'جاري تسجيل الدخول...';
 
+    let identifier = document.getElementById('identifier').value.trim();
+    if (/^\d/.test(identifier) || identifier.startsWith('0')) {
+      if (identifier.startsWith('0')) identifier = '+964' + identifier.slice(1);
+      else if (!identifier.startsWith('+')) identifier = '+964' + identifier;
+    }
+
     try {
       const data = await api('POST', '/auth/login', {
-        identifier: document.getElementById('identifier').value,
+        identifier,
         password: document.getElementById('password').value,
       });
 

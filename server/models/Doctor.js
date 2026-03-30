@@ -8,9 +8,14 @@ const DoctorSchema = new mongoose.Schema({
   bio: { type: String, maxlength: 1000 },
   governorate: { type: String, required: true },
   address: { type: String },
-  consultationFee: { type: Number, default: 0 },
-  languages: [{ type: String }],
 
+  // Pricing
+  consultationFee: { type: Number, default: 25000 },
+  specialConsultationFee: { type: Number, default: 30000 },
+  emergencyConsultationFee: { type: Number, default: 35000 },
+
+  additionalPhones: [{ type: String }],
+  
   // Credentials
   credentials: [{
     type: { type: String, enum: ['شهادة', 'دبلوم', 'دكتوراه', 'بورد', 'زمالة', 'دورة'] },
@@ -34,28 +39,40 @@ const DoctorSchema = new mongoose.Schema({
   clinicPhone: { type: String },
   isLabDoctor: { type: Boolean, default: false },
 
-  // Schedule: array of working days
+  // Schedule
   schedule: [{
     day: { type: String, enum: ['السبت', 'الأحد', 'الاثنين', 'الثلاثاء', 'الأربعاء', 'الخميس', 'الجمعة'] },
-    startTime: String, // "09:00"
-    endTime: String,   // "17:00"
-    slotDuration: { type: Number, default: 30 }, // minutes
+    startTime: { type: String, default: "09:00" },
+    endTime: { type: String, default: "17:00" },
+    slotDuration: { type: Number, default: 30 },
     isAvailable: { type: Boolean, default: true },
   }],
 
-  // Blocked dates (holidays etc)
+  offDays: [{ 
+    date: Date,
+    reason: String
+  }],
   blockedDates: [{ type: Date }],
 
-  // Stats
   totalAppointments: { type: Number, default: 0 },
   totalReviews: { type: Number, default: 0 },
   averageRating: { type: Number, default: 0 },
+
+  location: {
+    lat: { type: Number, default: 33.3152 },
+    lng: { type: Number, default: 44.3661 }
+  },
+  
+  autoApprove: {
+    normal: { type: Boolean, default: false },
+    urgent: { type: Boolean, default: false },
+    emergency: { type: Boolean, default: false },
+  },
 
   isVerified: { type: Boolean, default: false },
   isAcceptingAppointments: { type: Boolean, default: true },
 }, { timestamps: true });
 
-// Full text search index
 DoctorSchema.index({ specialization: 'text', clinicName: 'text', bio: 'text' });
 
 module.exports = mongoose.model('Doctor', DoctorSchema);
