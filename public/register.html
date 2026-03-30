@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>إنشاء حساب | طبيبي</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/main.css">
+  <style>
+    body { min-height: 100vh; background: linear-gradient(135deg, var(--primary-dark), var(--primary-light)); display: flex; align-items: center; justify-content: center; padding: 20px; }
+    .auth-card { background: white; border-radius: var(--radius-xl); padding: 40px 36px; width: 100%; max-width: 560px; box-shadow: var(--shadow-lg); animation: slideUp 0.4s ease; }
+    .auth-logo { text-align: center; margin-bottom: 24px; }
+    .auth-logo a { font-size: 1.8rem; font-weight: 800; color: var(--primary); }
+    .auth-logo a span { color: var(--accent); }
+    .role-selector { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 24px; }
+    .role-btn {
+      padding: 14px 8px;
+      border: 2px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: white;
+      cursor: pointer;
+      text-align: center;
+      transition: var(--transition);
+      font-family: var(--font);
+    }
+    .role-btn:hover { border-color: var(--primary); }
+    .role-btn.selected { border-color: var(--primary); background: rgba(26,107,138,0.06); }
+    .role-btn .role-icon { font-size: 1.6rem; display: block; margin-bottom: 6px; }
+    .role-btn .role-name { font-size: 0.8rem; font-weight: 700; color: var(--text-dark); }
+    .extra-fields { display: none; padding: 16px; background: var(--secondary); border-radius: var(--radius-sm); margin-bottom: 16px; }
+    .extra-fields.show { display: block; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    @media(max-width:480px){ .auth-card{ padding: 28px 18px; } .two-col{ grid-template-columns:1fr; } }
+  </style>
+</head>
+<body>
+<div class="auth-card">
+  <div class="auth-logo">
+    <a href="/">🏥 طبيبي<span>.</span></a>
+    <p style="color:var(--text-medium);font-size:0.9rem;margin-top:6px;">إنشاء حساب جديد مجاناً</p>
+  </div>
+
+  <div id="alertBox"></div>
+
+  <!-- Role Selector -->
+  <div class="role-selector">
+    <button class="role-btn" id="role-patient" onclick="selectRole('patient')">
+      <span class="role-icon">👤</span>
+      <span class="role-name">مريض / زبون</span>
+    </button>
+    <button class="role-btn" id="role-doctor" onclick="selectRole('doctor')">
+      <span class="role-icon">👨‍⚕️</span>
+      <span class="role-name">طبيب</span>
+    </button>
+    <button class="role-btn" id="role-institution" onclick="selectRole('institution')">
+      <span class="role-icon">🏥</span>
+      <span class="role-name">مؤسسة طبية</span>
+    </button>
+  </div>
+
+  <form id="registerForm" onsubmit="handleRegister(event)">
+    <div class="two-col">
+      <div class="form-group">
+        <label class="form-label">الاسم الكامل</label>
+        <input type="text" class="form-control" id="name" placeholder="محمد أحمد..." required>
+      </div>
+      <div class="form-group">
+        <label class="form-label">رقم الهاتف</label>
+        <input type="tel" class="form-control" id="phone" placeholder="07X-XXX-XXXX" required>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">📧 البريد الإلكتروني</label>
+      <input type="email" class="form-control" id="email" placeholder="example@email.com" required>
+    </div>
+
+    <div class="form-group">
+      <label class="form-label">🏙️ المحافظة</label>
+      <select class="form-control" id="governorate" required>
+        <option value="">اختر محافظتك</option>
+      </select>
+    </div>
+
+    <!-- Doctor extra fields -->
+    <div class="extra-fields" id="doctorFields">
+      <p style="font-weight:700;color:var(--primary);margin-bottom:12px;">👨‍⚕️ معلومات الطبيب</p>
+      <div class="two-col">
+        <div class="form-group" style="margin:0">
+          <label class="form-label">التخصص</label>
+          <input type="text" class="form-control" id="specialization" placeholder="مثال: طب باطني">
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label">القسم</label>
+          <select class="form-control" id="department">
+            <option value="">القسم الطبي</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Institution extra fields -->
+    <div class="extra-fields" id="institutionFields">
+      <p style="font-weight:700;color:var(--warning);margin-bottom:12px;">🏥 معلومات المؤسسة</p>
+      <div class="form-group" style="margin-bottom:12px">
+        <label class="form-label">اسم المؤسسة</label>
+        <input type="text" class="form-control" id="institutionName" placeholder="مستشفى / عيادة...">
+      </div>
+      <div class="form-group" style="margin:0">
+        <label class="form-label">نوع المؤسسة</label>
+        <select class="form-control" id="institutionType">
+          <option value="">اختر النوع</option>
+          <option>مستشفى</option>
+          <option>عيادة</option>
+          <option>مركز طبي</option>
+          <option>مختبر</option>
+          <option>مركز أشعة</option>
+          <option>صيدلية</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="two-col">
+      <div class="form-group">
+        <label class="form-label">🔒 كلمة المرور</label>
+        <input type="password" class="form-control" id="password" placeholder="6 أحرف على الأقل" required minlength="6">
+      </div>
+      <div class="form-group">
+        <label class="form-label">🔒 تأكيد المرور</label>
+        <input type="password" class="form-control" id="confirmPassword" placeholder="أعد كلمة المرور" required>
+      </div>
+    </div>
+
+    <button type="submit" class="btn btn-primary btn-full btn-lg" id="registerBtn" style="margin-bottom:16px;">
+      إنشاء الحساب
+    </button>
+    <p style="text-align:center;color:var(--text-medium);font-size:0.9rem;">
+      لديك حساب؟ <a href="/login.html" style="color:var(--primary);font-weight:700;">تسجيل الدخول</a>
+    </p>
+    <p style="text-align:center;margin-top:10px;">
+      <a href="/" style="color:var(--text-light);font-size:0.85rem;">← العودة للرئيسية</a>
+    </p>
+  </form>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  redirectIfLoggedIn();
+  let selectedRole = 'patient';
+
+  // Auto-select role from URL
+  const urlParams = new URLSearchParams(window.location.search);
+  const urlRole = urlParams.get('role');
+  if (urlRole) selectRole(urlRole);
+  else selectRole('patient');
+
+  function selectRole(role) {
+    selectedRole = role;
+    document.querySelectorAll('.role-btn').forEach(b => b.classList.remove('selected'));
+    document.getElementById(`role-${role}`)?.classList.add('selected');
+    document.getElementById('doctorFields').classList.toggle('show', role === 'doctor');
+    document.getElementById('institutionFields').classList.toggle('show', role === 'institution');
+  }
+
+  // Load governorates and departments
+  const loadData = async () => {
+    try {
+      const [govRes, deptRes] = await Promise.all([
+        api('GET', '/departments/governorates'),
+        api('GET', '/departments'),
+      ]);
+      const govSel = document.getElementById('governorate');
+      govRes.governorates.forEach(g => { govSel.innerHTML += `<option value="${g}">${g}</option>`; });
+      const deptSel = document.getElementById('department');
+      deptRes.departments.forEach(d => { deptSel.innerHTML += `<option value="${d.name}">${d.name}</option>`; });
+    } catch {}
+  };
+  loadData();
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    const alertBox = document.getElementById('alertBox');
+    alertBox.innerHTML = '';
+    const password = document.getElementById('password').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+
+    if (password !== confirmPassword) {
+      alertBox.innerHTML = '<div class="alert alert-error">❌ كلمتا المرور غير متطابقتين</div>';
+      return;
+    }
+
+    const btn = document.getElementById('registerBtn');
+    btn.disabled = true;
+    btn.textContent = 'جاري إنشاء الحساب...';
+
+    const body = {
+      name: document.getElementById('name').value,
+      email: document.getElementById('email').value,
+      phone: document.getElementById('phone').value,
+      password,
+      role: selectedRole,
+      governorate: document.getElementById('governorate').value,
+    };
+
+    if (selectedRole === 'doctor') {
+      body.specialization = document.getElementById('specialization').value;
+      body.department = document.getElementById('department').value;
+    }
+    if (selectedRole === 'institution') {
+      body.institutionName = document.getElementById('institutionName').value;
+      body.institutionType = document.getElementById('institutionType').value;
+    }
+
+    try {
+      const data = await api('POST', '/auth/register', body);
+      setAuth(data.token, data.user);
+      showToast('تم إنشاء حسابك بنجاح! 🎉', 'success');
+      setTimeout(() => {
+        const dashboards = { doctor: '/dashboard-doctor.html', institution: '/dashboard-institution.html', patient: '/dashboard-patient.html' };
+        window.location = dashboards[data.user.role] || '/dashboard-patient.html';
+      }, 800);
+    } catch (err) {
+      alertBox.innerHTML = `<div class="alert alert-error">❌ ${err.message}</div>`;
+      btn.disabled = false;
+      btn.textContent = 'إنشاء الحساب';
+    }
+  };
+</script>
+</body>
+</html>

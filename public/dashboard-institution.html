@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة تحكم المؤسسة | طبيبي</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/main.css">
+</head>
+<body>
+<div class="dashboard-layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo"><a href="/">🏥 طبيبي<span>.</span></a></div>
+    <ul class="sidebar-nav">
+      <li class="sidebar-nav-item active" id="menu-home"><a onclick="showSection('home')"><span class="nav-icon">🏠</span> لوحة التحكم</a></li>
+      <li class="sidebar-nav-item" id="menu-doctors"><a onclick="showSection('doctors')"><span class="nav-icon">👨‍⚕️</span> أطبائنا</a></li>
+      <li class="sidebar-nav-item" id="menu-profile"><a onclick="showSection('profile')"><span class="nav-icon">🏥</span> ملف المؤسسة</a></li>
+      <li class="sidebar-nav-item" id="menu-notifications"><a onclick="showSection('notifications')"><span class="nav-icon">🔔</span> الإشعارات</a></li>
+      <li class="sidebar-nav-item"><a onclick="logout()" style="color:rgba(255,100,100,0.9)"><span class="nav-icon">🚪</span> خروج</a></li>
+    </ul>
+  </aside>
+
+  <main class="main-content">
+    <!-- Home -->
+    <section id="section-home">
+      <div class="page-header">
+        <h1 class="page-title" id="instTitle">🏥 لوحة التحكم</h1>
+        <p class="page-subtitle">إدارة مؤسستك الطبية</p>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon blue">👨‍⚕️</div><div><div class="stat-value" id="statDoctors">0</div><div class="stat-label">عدد الأطباء</div></div></div>
+        <div class="stat-card"><div class="stat-icon green">🏥</div><div><div class="stat-value" id="statType">-</div><div class="stat-label">نوع المؤسسة</div></div></div>
+        <div class="stat-card"><div class="stat-icon orange">📍</div><div><div class="stat-value" id="statGov">-</div><div class="stat-label">المحافظة</div></div></div>
+        <div class="stat-card"><div class="stat-icon red">✅</div><div><div class="stat-value" id="statVerified">-</div><div class="stat-label">حالة التوثيق</div></div></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:16px;color:var(--primary)">👨‍⚕️ أطباء مؤسستنا</h3>
+        <div id="homeDoctors"><div class="spinner"></div></div>
+      </div>
+    </section>
+
+    <!-- Doctors -->
+    <section id="section-doctors" style="display:none">
+      <div class="page-header">
+        <h1 class="page-title">👨‍⚕️ أطباء المؤسسة</h1>
+      </div>
+      <div class="card" style="margin-bottom:20px">
+        <h3 style="margin-bottom:16px;color:var(--primary)">➕ إضافة طبيب جديد</h3>
+        <p style="font-size:0.9rem;color:var(--text-medium);margin-bottom:12px">ادخل معرّف الطبيب (Doctor ID) لإضافته للمؤسسة</p>
+        <div style="display:flex;gap:12px">
+          <input type="text" class="form-control" id="addDoctorId" placeholder="معرّف الطبيب..." style="flex:1">
+          <button class="btn btn-primary" onclick="addDoctor()">إضافة</button>
+        </div>
+        <div id="addDoctorAlert" style="margin-top:10px"></div>
+      </div>
+      <div id="doctorsList"><div class="spinner"></div></div>
+    </section>
+
+    <!-- Profile -->
+    <section id="section-profile" style="display:none">
+      <div class="page-header"><h1 class="page-title">🏥 ملف المؤسسة</h1></div>
+      <div class="card">
+        <form onsubmit="saveInstProfile(event)">
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="form-group"><label class="form-label">اسم المؤسسة</label><input type="text" class="form-control" id="instName"></div>
+            <div class="form-group"><label class="form-label">النوع</label><select class="form-control" id="instType"><option>مستشفى</option><option>عيادة</option><option>مركز طبي</option><option>مختبر</option><option>مركز أشعة</option><option>صيدلية</option></select></div>
+            <div class="form-group"><label class="form-label">المحافظة</label><select class="form-control" id="instGov"><option value="">اختر</option></select></div>
+            <div class="form-group"><label class="form-label">رقم الهاتف</label><input type="text" class="form-control" id="instPhone"></div>
+            <div class="form-group" style="grid-column:1/-1"><label class="form-label">العنوان</label><input type="text" class="form-control" id="instAddress"></div>
+            <div class="form-group" style="grid-column:1/-1"><label class="form-label">وصف المؤسسة</label><textarea class="form-control" id="instDesc"></textarea></div>
+          </div>
+          <button type="submit" class="btn btn-primary">💾 حفظ البيانات</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Notifications -->
+    <section id="section-notifications" style="display:none">
+      <div class="page-header"><h1 class="page-title">🔔 الإشعارات</h1></div>
+      <div id="notifsList"><div class="spinner"></div></div>
+    </section>
+  </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  if (!requireAuth()) {}
+  const user = getUser();
+  let instProfile = null;
+
+  const showSection = (name) => {
+    document.querySelectorAll('main section').forEach(s => s.style.display = 'none');
+    document.getElementById(`section-${name}`).style.display = 'block';
+    document.querySelectorAll('.sidebar-nav-item').forEach(i => i.classList.remove('active'));
+    document.getElementById(`menu-${name}`)?.classList.add('active');
+    if (name === 'doctors') loadDoctors();
+    if (name === 'profile') loadProfileForm();
+    if (name === 'notifications') loadNotifications();
+  };
+
+  const logout = () => { clearAuth(); window.location.href = '/login.html'; };
+
+  const init = async () => {
+    try {
+      const { profile } = await api('GET', '/auth/me');
+      instProfile = profile;
+      if (profile) {
+        document.getElementById('instTitle').textContent = `🏥 ${profile.institutionName || 'مؤسستي'}`;
+        document.getElementById('statDoctors').textContent = profile.doctors?.length || 0;
+        document.getElementById('statType').textContent = profile.type || '-';
+        document.getElementById('statGov').textContent = profile.governorate || '-';
+        document.getElementById('statVerified').textContent = profile.isVerified ? 'موثق ✅' : 'قيد المراجعة';
+        renderHomeDoctors(profile.doctors || []);
+      }
+    } catch {}
+  };
+
+  const renderHomeDoctors = (doctors) => {
+    const el = document.getElementById('homeDoctors');
+    if (!doctors || doctors.length === 0) {
+      el.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:20px">لم يتم إضافة أطباء بعد</p>';
+    } else {
+      el.innerHTML = `<div class="doctors-grid">${doctors.map(d => `
+        <div class="card" style="padding:16px">
+          <div style="display:flex;gap:12px;align-items:center">
+            <div style="width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;color:white;font-size:1.1rem">👨‍⚕️</div>
+            <div><strong>${d.user?.name || 'طبيب'}</strong><div style="font-size:0.85rem;color:var(--text-medium)">${d.specialization}</div></div>
+          </div>
+        </div>
+      `).join('')}</div>`;
+    }
+  };
+
+  const loadDoctors = async () => {
+    if (!instProfile) return;
+    const el = document.getElementById('doctorsList');
+    renderHomeDoctors(instProfile.doctors || []);
+    el.innerHTML = instProfile.doctors?.length === 0
+      ? '<p style="color:var(--text-light);text-align:center;padding:40px">لا يوجد أطباء مضافون</p>'
+      : `<div class="doctors-grid">${(instProfile.doctors || []).map(d => `
+        <div class="card" style="padding:16px">
+          <div style="display:flex;gap:12px;align-items:center;margin-bottom:12px">
+            <div style="width:50px;height:50px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;color:white;font-size:1.3rem">👨‍⚕️</div>
+            <div><strong>د. ${d.user?.name || 'طبيب'}</strong><div style="font-size:0.85rem;color:var(--text-medium)">${d.specialization} - ${d.department}</div></div>
+          </div>
+          <button class="btn btn-outline btn-sm btn-full" onclick="window.location='/doctor-profile.html?id=${d._id}'">عرض الملف</button>
+        </div>
+      `).join('')}</div>`;
+  };
+
+  const addDoctor = async () => {
+    const id = document.getElementById('addDoctorId').value.trim();
+    const alertEl = document.getElementById('addDoctorAlert');
+    if (!id) { alertEl.innerHTML = '<div class="alert alert-error">ادخل معرّف الطبيب</div>'; return; }
+    try {
+      await api('POST', '/institutions/add-doctor', { doctorId: id });
+      alertEl.innerHTML = '<div class="alert alert-success">✅ تمت إضافة الطبيب بنجاح</div>';
+      document.getElementById('addDoctorId').value = '';
+      init();
+    } catch (err) { alertEl.innerHTML = `<div class="alert alert-error">❌ ${err.message}</div>`; }
+  };
+
+  const loadProfileForm = async () => {
+    if (!instProfile) return;
+    document.getElementById('instName').value = instProfile.institutionName || '';
+    document.getElementById('instType').value = instProfile.type || '';
+    document.getElementById('instPhone').value = instProfile.phone?.[0] || '';
+    document.getElementById('instAddress').value = instProfile.address || '';
+    document.getElementById('instDesc').value = instProfile.description || '';
+
+    // Load governorates
+    try {
+      const { governorates } = await api('GET', '/departments/governorates');
+      const sel = document.getElementById('instGov');
+      sel.innerHTML = '<option value="">اختر</option>';
+      governorates.forEach(g => sel.innerHTML += `<option value="${g}" ${g===instProfile.governorate?'selected':''}>${g}</option>`);
+    } catch {}
+  };
+
+  const saveInstProfile = async (e) => {
+    e.preventDefault();
+    try {
+      await api('PUT', '/institutions/profile', {
+        institutionName: document.getElementById('instName').value,
+        type: document.getElementById('instType').value,
+        governorate: document.getElementById('instGov').value,
+        address: document.getElementById('instAddress').value,
+        description: document.getElementById('instDesc').value,
+      });
+      showToast('تم حفظ بيانات المؤسسة ✅', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  const loadNotifications = async () => {
+    try {
+      const { notifications } = await api('GET', '/auth/notifications');
+      const el = document.getElementById('notifsList');
+      if (!notifications || notifications.length === 0) { el.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:40px">لا توجد إشعارات</p>'; return; }
+      el.innerHTML = notifications.map(n => `
+        <div style="padding:14px 16px;background:white;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:10px;">
+          <p style="font-size:0.9rem">${n.message}</p>
+          <small style="color:var(--text-light)">${new Date(n.createdAt).toLocaleString('ar-IQ')}</small>
+        </div>
+      `).join('');
+    } catch {}
+  };
+
+  init();
+</script>
+</body>
+</html>

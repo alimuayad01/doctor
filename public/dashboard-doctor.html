@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة تحكم الطبيب | طبيبي</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/main.css">
+  <style>
+    .appt-card { background: white; border-radius: var(--radius); padding: 18px 20px; border: 1px solid var(--border); margin-bottom: 12px; display: flex; align-items: center; gap: 16px; }
+    .appt-patient-avatar { width: 44px; height: 44px; border-radius: 50%; background: linear-gradient(135deg, var(--accent), var(--accent-dark)); display: flex; align-items: center; justify-content: center; color: white; font-size: 1.1rem; flex-shrink: 0; }
+    .schedule-day { background: white; border-radius: var(--radius-sm); border: 1px solid var(--border); padding: 16px; margin-bottom: 10px; }
+    .schedule-day-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px; }
+    .cred-item { display: flex; align-items: center; gap: 12px; padding: 12px; background: var(--secondary); border-radius: var(--radius-sm); margin-bottom: 8px; }
+    .review-item { padding: 16px; border: 1px solid var(--border); border-radius: var(--radius-sm); margin-bottom: 10px; background: white; }
+    .section-tab { background: var(--secondary); border-radius: var(--radius); padding: 4px; display: flex; gap: 4px; margin-bottom: 24px; }
+    .stab { flex: 1; padding: 10px; border: none; background: transparent; border-radius: calc(var(--radius) - 4px); font-family: var(--font); font-weight: 600; font-size: 0.85rem; cursor: pointer; transition: var(--transition); color: var(--text-medium); }
+    .stab.active { background: white; color: var(--primary); box-shadow: var(--shadow-sm); }
+  </style>
+</head>
+<body>
+<div class="dashboard-layout">
+  <aside class="sidebar">
+    <div class="sidebar-logo"><a href="/">🏥 طبيبي<span>.</span></a></div>
+    <ul class="sidebar-nav">
+      <li class="sidebar-nav-item active" id="menu-home"><a onclick="showSection('home')"><span class="nav-icon">🏠</span> لوحة التحكم</a></li>
+      <li class="sidebar-nav-item" id="menu-appointments"><a onclick="showSection('appointments')"><span class="nav-icon">📅</span> المواعيد</a></li>
+      <li class="sidebar-nav-item" id="menu-lab-orders"><a onclick="showSection('lab-orders')"><span class="nav-icon">🔬</span> طلبات المختبر</a></li>
+      <li class="sidebar-nav-item" id="menu-schedule"><a onclick="showSection('schedule')"><span class="nav-icon">🗓️</span> جدول العمل</a></li>
+      <li class="sidebar-nav-item" id="menu-profile"><a onclick="showSection('profile')"><span class="nav-icon">👨‍⚕️</span> ملفي الطبي</a></li>
+      <li class="sidebar-nav-item" id="menu-reviews"><a onclick="showSection('reviews')"><span class="nav-icon">⭐</span> التقييمات</a></li>
+      <li class="sidebar-nav-item" id="menu-notifications"><a onclick="showSection('notifications')"><span class="nav-icon">🔔</span> الإشعارات</a></li>
+      <li class="sidebar-nav-item"><a onclick="logout()" style="color:rgba(255,100,100,0.9)"><span class="nav-icon">🚪</span> خروج</a></li>
+    </ul>
+  </aside>
+
+  <main class="main-content">
+    <!-- Home -->
+    <section id="section-home">
+      <div class="page-header">
+        <h1 class="page-title" id="welcomeTitle">مرحباً د. 👋</h1>
+        <p class="page-subtitle">إليك ملخص عيادتك اليوم</p>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon blue">📅</div><div><div class="stat-value" id="statTotal">0</div><div class="stat-label">إجمالي المواعيد</div></div></div>
+        <div class="stat-card"><div class="stat-icon green">✅</div><div><div class="stat-value" id="statToday">0</div><div class="stat-label">مواعيد اليوم</div></div></div>
+        <div class="stat-card"><div class="stat-icon orange">⭐</div><div><div class="stat-value" id="statRating">0</div><div class="stat-label">معدل التقييم</div></div></div>
+        <div class="stat-card"><div class="stat-icon red">👥</div><div><div class="stat-value" id="statReviews">0</div><div class="stat-label">تقييمات المرضى</div></div></div>
+      </div>
+      <div class="card">
+        <h3 style="margin-bottom:16px;color:var(--primary)">📅 مواعيد اليوم</h3>
+        <div id="todayAppts"><div class="spinner"></div></div>
+      </div>
+    </section>
+
+    <!-- Appointments -->
+    <section id="section-appointments" style="display:none">
+      <div class="page-header"><h1 class="page-title">📅 جميع المواعيد</h1></div>
+      <div class="form-group" style="max-width:240px">
+        <label class="form-label">فلترة حسب التاريخ</label>
+        <input type="date" class="form-control" id="apptDateFilter" onchange="loadAllAppts()">
+      </div>
+      <div id="allAppts"><div class="spinner"></div></div>
+    </section>
+
+    <!-- Lab Orders -->
+    <section id="section-lab-orders" style="display:none">
+      <div class="page-header"><h1 class="page-title">🔬 طلبات المختبر والتحاليل</h1></div>
+      <div id="labOrders"><div class="spinner"></div></div>
+    </section>
+
+    <!-- Schedule -->
+    <section id="section-schedule" style="display:none">
+      <div class="page-header"><h1 class="page-title">🗓️ جدول العمل</h1></div>
+      <div class="card">
+        <p style="color:var(--text-medium);margin-bottom:20px;font-size:0.9rem">حدد أيام وساعات عملك وسيتم توليد المواعيد المتاحة تلقائياً</p>
+        <div id="scheduleForm"></div>
+        <button class="btn btn-primary" onclick="saveSchedule()">💾 حفظ الجدول</button>
+      </div>
+    </section>
+
+    <!-- Profile -->
+    <section id="section-profile" style="display:none">
+      <div class="page-header"><h1 class="page-title">👨‍⚕️ ملفي الطبي</h1></div>
+      <div class="section-tab">
+        <button class="stab active" onclick="showProfileTab('info',this)">المعلومات</button>
+        <button class="stab" onclick="showProfileTab('credentials',this)">الشهادات والخبرات</button>
+      </div>
+      <div id="profileTabContent"></div>
+    </section>
+
+    <!-- Reviews -->
+    <section id="section-reviews" style="display:none">
+      <div class="page-header"><h1 class="page-title">⭐ تقييمات المرضى</h1></div>
+      <div id="reviewsList"><div class="spinner"></div></div>
+    </section>
+
+    <!-- Notifications -->
+    <section id="section-notifications" style="display:none">
+      <div class="page-header"><h1 class="page-title">🔔 الإشعارات</h1><button class="btn btn-outline btn-sm" onclick="markAllRead()">تعليم الكل كمقروء</button></div>
+      <div id="notifsList"><div class="spinner"></div></div>
+    </section>
+  </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  if (!requireAuth()) {}
+  const user = getUser();
+  let doctorProfile = null;
+
+  document.getElementById('welcomeTitle').textContent = `مرحباً، د. ${user?.name?.split(' ')[0] || ''} 👋`;
+
+  const showSection = (name) => {
+    document.querySelectorAll('main section').forEach(s => s.style.display = 'none');
+    document.getElementById(`section-${name}`).style.display = 'block';
+    document.querySelectorAll('.sidebar-nav-item').forEach(i => i.classList.remove('active'));
+    document.getElementById(`menu-${name}`)?.classList.add('active');
+    if (name === 'appointments') loadAllAppts();
+    if (name === 'lab-orders') loadLabOrders();
+    if (name === 'schedule') renderScheduleForm();
+    if (name === 'profile') loadProfileSection();
+    if (name === 'reviews') loadReviews();
+    if (name === 'notifications') loadNotifications();
+  };
+
+  const logout = () => { clearAuth(); window.location.href = '/login.html'; };
+
+  const loadLabOrders = async () => {
+    try {
+      const { orders } = await api('GET', '/labs/lab-orders');
+      const el = document.getElementById('labOrders');
+      if (orders.length === 0) {
+        el.innerHTML = `<p style="color:var(--text-light);text-align:center;padding:40px">لا يوجد طلبات تحاليل لمختبرك حالياً</p>`;
+        return;
+      }
+      el.innerHTML = orders.map(o => `
+        <div class="appt-card">
+          <div style="flex:1">
+            <strong>👤 ${o.patient?.name || 'مريض'}</strong>
+            <div style="font-size:0.85rem;color:var(--text-medium)">
+              🔬 ${o.lab?.name} | 📅 ${new Date(o.date).toLocaleDateString('ar-IQ')} | ⏰ ${o.time}
+            </div>
+            <div style="margin-top:4px;color:var(--primary);font-size:0.85rem">التحاليل: ${o.services?.map(s => s.name).join(', ')}</div>
+            ${o.resultFiles?.length > 0 ? `<div style="margin-top:8px;font-size:0.8rem;color:var(--success)">✅ ${o.resultFiles.length} ملفات مرفوعة</div>` : ''}
+          </div>
+          <div style="display:flex;flex-direction:column;gap:8px">
+            ${statusBadge(o.status)}
+            <button class="btn btn-sm btn-outline" onclick="openResultUpload('${o._id}')">⬆️ رفع النتيجة</button>
+          </div>
+        </div>
+      `).join('');
+    } catch {}
+  };
+
+  const openResultUpload = (orderId) => {
+    const notes = prompt('أضف ملاحظات على النتيجة (اختياري):');
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.accept = 'application/pdf,image/*';
+    input.onchange = async (e) => {
+      const files = e.target.files;
+      if (files.length === 0) return;
+      
+      const formData = new FormData();
+      for (let file of files) formData.append('results', file);
+      formData.append('notes', notes || '');
+
+      try {
+        const res = await fetch(`/api/labs/order/${orderId}/upload`, {
+          method: 'PUT',
+          headers: { 'Authorization': `Bearer ${getToken()}` },
+          body: formData
+        });
+        const data = await res.json();
+        if (data.success) {
+          showToast('تم رفع نتائج التحليل بنجاح وإشعار المريض ✅', 'success');
+          loadLabOrders();
+        } else { throw new Error(data.message); }
+      } catch (err) { showToast(err.message, 'error'); }
+    };
+    input.click();
+  };
+
+  const init = async () => {
+    try {
+      const { profile } = await api('GET', '/auth/me');
+      doctorProfile = profile;
+      // Stats
+      document.getElementById('statRating').textContent = (profile?.averageRating || 0).toFixed(1);
+      document.getElementById('statReviews').textContent = profile?.totalReviews || 0;
+      await loadTodayAppts();
+    } catch {}
+  };
+
+  const loadTodayAppts = async () => {
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { appointments } = await api('GET', `/appointments/doctor?date=${today}`);
+      document.getElementById('statTotal').textContent = appointments.length;
+      const confirmed = appointments.filter(a => a.status === 'confirmed');
+      document.getElementById('statToday').textContent = confirmed.length;
+
+      const el = document.getElementById('todayAppts');
+      if (appointments.length === 0) {
+        el.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:20px">لا توجد مواعيد اليوم</p>';
+      } else {
+        el.innerHTML = appointments.map(a => `
+          <div class="appt-card">
+            <div class="appt-patient-avatar">👤</div>
+            <div style="flex:1">
+              <strong>${a.patient?.name || 'مريض'}</strong>
+              <div style="font-size:0.85rem;color:var(--text-medium)">⏰ ${a.startTime} - ${a.endTime} | ${a.type}</div>
+            </div>
+            ${statusBadge(a.status)}
+            ${a.status === 'confirmed' ? `<button class="btn btn-sm btn-success" onclick="completeAppt('${a._id}')">✅ اكتمل</button>` : ''}
+          </div>
+        `).join('');
+      }
+    } catch {}
+  };
+
+  const loadAllAppts = async () => {
+    const date = document.getElementById('apptDateFilter')?.value;
+    const query = date ? `?date=${date}` : '';
+    try {
+      const { appointments } = await api('GET', `/appointments/doctor${query}`);
+      const el = document.getElementById('allAppts');
+      if (appointments.length === 0) {
+        el.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:40px">لا توجد مواعيد</p>';
+      } else {
+        el.innerHTML = appointments.map(a => `
+          <div class="appt-card">
+            <div class="appt-patient-avatar">👤</div>
+            <div style="flex:1">
+              <strong>${a.patient?.name || 'مريض'}</strong>
+              <div style="font-size:0.85rem;color:var(--text-medium)">
+                📅 ${new Date(a.date).toLocaleDateString('ar-IQ')} | ⏰ ${a.startTime} | ${a.type}
+              </div>
+              ${a.notes ? `<div style="font-size:0.8rem;color:var(--text-light);margin-top:4px">📝 ${a.notes}</div>` : ''}
+            </div>
+            ${statusBadge(a.status)}
+            ${a.status === 'confirmed' ? `
+              <button class="btn btn-sm btn-success" onclick="completeAppt('${a._id}')">اكتمل</button>
+              <button class="btn btn-sm btn-danger" onclick="cancelAppt('${a._id}')">إلغاء</button>
+            ` : ''}
+          </div>
+        `).join('');
+      }
+    } catch {}
+  };
+
+  const completeAppt = async (id) => {
+    try {
+      await api('PUT', `/appointments/${id}/complete`);
+      showToast('تم تعليم الموعد كمكتمل', 'success');
+      loadTodayAppts();
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  const cancelAppt = async (id) => {
+    if (!confirm('إلغاء الموعد؟')) return;
+    try {
+      await api('PUT', `/appointments/${id}/cancel`, { reason: 'إلغاء من الطبيب' });
+      showToast('تم إلغاء الموعد', 'info');
+      loadAllAppts();
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  const DAYS = ['السبت','الأحد','الاثنين','الثلاثاء','الأربعاء','الخميس','الجمعة'];
+  let scheduleData = DAYS.map(day => ({ day, startTime: '09:00', endTime: '17:00', slotDuration: 30, isAvailable: false }));
+
+  const renderScheduleForm = async () => {
+    if (doctorProfile?.schedule?.length > 0) scheduleData = [...doctorProfile.schedule];
+    const el = document.getElementById('scheduleForm');
+    el.innerHTML = scheduleData.map((s, i) => `
+      <div class="schedule-day">
+        <div class="schedule-day-header">
+          <label style="font-weight:700;display:flex;align-items:center;gap:10px">
+            <input type="checkbox" ${s.isAvailable ? 'checked' : ''} onchange="scheduleData[${i}].isAvailable=this.checked;renderScheduleForm()" style="width:18px;height:18px">
+            ${s.day}
+          </label>
+        </div>
+        ${s.isAvailable ? `
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+            <div><label class="form-label" style="font-size:0.8rem">من</label><input type="time" class="form-control" value="${s.startTime}" onchange="scheduleData[${i}].startTime=this.value"></div>
+            <div><label class="form-label" style="font-size:0.8rem">إلى</label><input type="time" class="form-control" value="${s.endTime}" onchange="scheduleData[${i}].endTime=this.value"></div>
+            <div><label class="form-label" style="font-size:0.8rem">مدة الموعد (دقيقة)</label><select class="form-control" onchange="scheduleData[${i}].slotDuration=parseInt(this.value)"><option value="15" ${s.slotDuration==15?'selected':''}>15 دقيقة</option><option value="20" ${s.slotDuration==20?'selected':''}>20 دقيقة</option><option value="30" ${s.slotDuration==30?'selected':''}>30 دقيقة</option><option value="45" ${s.slotDuration==45?'selected':''}>45 دقيقة</option><option value="60" ${s.slotDuration==60?'selected':''}>ساعة</option></select></div>
+          </div>
+        ` : '<p style="font-size:0.85rem;color:var(--text-light)">غير متاح هذا اليوم</p>'}
+      </div>
+    `).join('');
+  };
+
+  const saveSchedule = async () => {
+    try {
+      await api('PUT', '/doctors/schedule', { schedule: scheduleData });
+      showToast('تم حفظ الجدول بنجاح ✅', 'success');
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  const loadProfileSection = () => { showProfileTab('info', document.querySelector('.stab')); };
+
+  const showProfileTab = (tab, btn) => {
+    document.querySelectorAll('.stab').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const el = document.getElementById('profileTabContent');
+    if (tab === 'info') {
+      el.innerHTML = `
+        <div class="card">
+          <form onsubmit="saveProfile(event)">
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+              <div class="form-group"><label class="form-label">التخصص</label><input type="text" class="form-control" id="pSpec" value="${doctorProfile?.specialization || ''}"></div>
+              <div class="form-group"><label class="form-label">نوع الكشف (دينار)</label><input type="number" class="form-control" id="pFee" value="${doctorProfile?.consultationFee || 0}"></div>
+              <div class="form-group"><label class="form-label">اسم العيادة</label><input type="text" class="form-control" id="pClinicName" value="${doctorProfile?.clinicName || ''}"></div>
+              <div class="form-group"><label class="form-label">هاتف العيادة</label><input type="text" class="form-control" id="pClinicPhone" value="${doctorProfile?.clinicPhone || ''}"></div>
+              <div class="form-group" style="grid-column:1/-1"><label class="form-label">عنوان العيادة</label><input type="text" class="form-control" id="pClinicAddr" value="${doctorProfile?.clinicAddress || ''}"></div>
+              <div class="form-group" style="grid-column:1/-1"><label class="form-label">نبذة عن طبيبنا</label><textarea class="form-control" id="pBio">${doctorProfile?.bio || ''}</textarea></div>
+            </div>
+            <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+              <label style="font-weight:700;display:flex;align-items:center;gap:8px;cursor:pointer">
+                <input type="checkbox" id="pAccepting" ${doctorProfile?.isAcceptingAppointments ? 'checked' : ''} style="width:18px;height:18px">
+                قبول المواعيد حالياً
+              </label>
+            </div>
+            <button type="submit" class="btn btn-primary" style="margin-top:20px">💾 حفظ التغييرات</button>
+          </form>
+        </div>`;
+    } else {
+      const creds = doctorProfile?.credentials || [];
+      el.innerHTML = `
+        <div class="card">
+          <h3 style="margin-bottom:16px;color:var(--primary)">شهاداتي وخبراتي</h3>
+          ${creds.map(c => `<div class="cred-item">🎓 <div><strong>${c.title}</strong><br><small>${c.institution} - ${c.year}</small></div></div>`).join('')}
+          ${creds.length === 0 ? '<p style="color:var(--text-light)">لم تضف أي شهادات بعد</p>' : ''}
+          <h4 style="margin:20px 0 12px;color:var(--primary)">إضافة شهادة جديدة</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-group"><label class="form-label">عنوان الشهادة</label><input type="text" class="form-control" id="credTitle" placeholder="مثال: بكالوريوس طب وجراحة"></div>
+            <div class="form-group"><label class="form-label">المؤسسة</label><input type="text" class="form-control" id="credInst" placeholder="جامعة بغداد"></div>
+            <div class="form-group"><label class="form-label">السنة</label><input type="number" class="form-control" id="credYear" placeholder="2015"></div>
+            <div class="form-group"><label class="form-label">النوع</label><select class="form-control" id="credType"><option>شهادة</option><option>دبلوم</option><option>دكتوراه</option><option>بورد</option><option>زمالة</option><option>دورة</option></select></div>
+          </div>
+          <div style="grid-column:1/-1;margin-top:10px">
+            <label class="form-label">رفع نسخة من الشهادة (اختياري)</label>
+            <input type="file" id="credFile" class="form-control" accept="image/*,application/pdf">
+          </div>
+          <button class="btn btn-accent btn-sm" onclick="addCredential()" style="margin-top:12px">+ إضافة الشهادة</button>
+        </div>`;
+    }
+  };
+
+  const saveProfile = async (e) => {
+    e.preventDefault();
+    try {
+      const formData = new FormData();
+      formData.append('specialization', document.getElementById('pSpec').value);
+      formData.append('consultationFee', document.getElementById('pFee').value);
+      formData.append('clinicName', document.getElementById('pClinicName').value);
+      formData.append('clinicPhone', document.getElementById('pClinicPhone').value);
+      formData.append('clinicAddress', document.getElementById('pClinicAddr').value);
+      formData.append('bio', document.getElementById('pBio').value);
+      formData.append('isAcceptingAppointments', document.getElementById('pAccepting').checked);
+      
+      const res = await fetch('/api/doctors/profile', {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('تم حفظ الملف الشخصي ✅', 'success');
+        doctorProfile = data.doctor;
+      } else throw new Error(data.message);
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  const addCredential = async () => {
+    try {
+      const file = document.getElementById('credFile').files[0];
+      const formData = new FormData();
+      const credData = {
+        type: document.getElementById('credType').value,
+        title: document.getElementById('credTitle').value,
+        institution: document.getElementById('credInst').value,
+        year: parseInt(document.getElementById('credYear').value),
+      };
+
+      if (file) {
+        formData.append('credential', file);
+        formData.append('credential_0', JSON.stringify(credData));
+      } else {
+        formData.append('newCredential', JSON.stringify(credData));
+      }
+
+      const res = await fetch('/api/doctors/profile', {
+        method: 'PUT',
+        headers: { 'Authorization': `Bearer ${getToken()}` },
+        body: formData
+      });
+      const data = await res.json();
+      if (data.success) {
+        showToast('تمت إضافة الشهادة ✅', 'success');
+        doctorProfile = data.doctor;
+        showProfileTab('credentials', document.querySelectorAll('.stab')[1]);
+      } else throw new Error(data.message);
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  const loadReviews = async () => {
+    if (!doctorProfile) return;
+    try {
+      const { reviews } = await api('GET', `/reviews/doctor/${doctorProfile._id}`);
+      const el = document.getElementById('reviewsList');
+      if (!reviews || reviews.length === 0) { el.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:40px">لا توجد تقييمات حتى الآن</p>'; return; }
+      el.innerHTML = reviews.map(r => `
+        <div class="review-item">
+          <div style="display:flex;justify-content:space-between;margin-bottom:8px">
+            <strong>${r.isAnonymous ? 'مجهول' : r.patient?.name}</strong>
+            <div>${renderStars(r.rating)} <small style="color:var(--text-medium)">${new Date(r.createdAt).toLocaleDateString('ar-IQ')}</small></div>
+          </div>
+          <p style="color:var(--text-medium);font-size:0.9rem">${r.comment || ''}</p>
+          ${r.doctorReply ? `<div style="margin-top:10px;padding:10px;background:var(--secondary);border-radius:var(--radius-sm);font-size:0.85rem"><strong>ردك:</strong> ${r.doctorReply}</div>` : `<button class="btn btn-outline btn-sm" style="margin-top:8px" onclick="replyReview('${r._id}',this)">رد على التقييم</button>`}
+        </div>
+      `).join('');
+    } catch {}
+  };
+
+  const replyReview = async (id, btn) => {
+    const reply = prompt('اكتب ردك على التقييم:');
+    if (!reply) return;
+    try {
+      await api('PUT', `/reviews/${id}/reply`, { reply });
+      showToast('تم إضافة الرد ✅', 'success');
+      loadReviews();
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  const loadNotifications = async () => {
+    try {
+      const { notifications } = await api('GET', '/auth/notifications');
+      const el = document.getElementById('notifsList');
+      if (!notifications || notifications.length === 0) { el.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:40px">لا توجد إشعارات</p>'; return; }
+      el.innerHTML = notifications.map(n => `
+        <div style="padding:14px 16px;background:white;border-radius:var(--radius-sm);border:1px solid var(--border);margin-bottom:10px;${n.isRead ? '' : 'border-right:3px solid var(--primary)'}">
+          <div style="display:flex;gap:12px">
+            <span style="font-size:1.4rem">${n.type === 'appointment' ? '📅' : '🔬'}</span>
+            <div><p style="font-size:0.9rem">${n.message}</p><small style="color:var(--text-light)">${new Date(n.createdAt).toLocaleString('ar-IQ')}</small></div>
+          </div>
+        </div>
+      `).join('');
+    } catch {}
+  };
+
+  const markAllRead = async () => {
+    try { await api('PUT', '/auth/notifications/read'); showToast('تم تعليم الكل كمقروء', 'success'); loadNotifications(); } catch {}
+  };
+
+  init();
+</script>
+</body>
+</html>

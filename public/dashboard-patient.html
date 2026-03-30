@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>لوحة تحكم المريض | طبيبي</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/main.css">
+  <style>
+    .appt-card { background: white; border-radius: var(--radius); padding: 20px; border: 1px solid var(--border); box-shadow: var(--shadow-sm); margin-bottom: 16px; display: flex; align-items: center; gap: 20px; transition: var(--transition); }
+    .appt-card:hover { box-shadow: var(--shadow-md); }
+    .appt-date-box { width: 68px; height: 68px; background: linear-gradient(135deg,var(--primary),var(--primary-light)); border-radius: var(--radius-sm); display: flex; flex-direction: column; align-items: center; justify-content: center; color: white; flex-shrink: 0; }
+    .appt-date-day { font-size: 1.6rem; font-weight: 800; line-height: 1; }
+    .appt-date-month { font-size: 0.7rem; opacity: 0.9; }
+    .appt-info { flex: 1; }
+    .appt-doctor { font-weight: 700; font-size: 1rem; margin-bottom: 4px; }
+    .appt-meta { font-size: 0.85rem; color: var(--text-medium); display: flex; gap: 12px; flex-wrap: wrap; }
+    .appt-actions { display: flex; gap: 8px; flex-shrink: 0; }
+    .notif-item { padding: 14px 16px; background: white; border-radius: var(--radius-sm); border: 1px solid var(--border); margin-bottom: 10px; display: flex; gap: 12px; align-items: flex-start; }
+    .notif-item.unread { border-right: 3px solid var(--primary); background: rgba(26,107,138,0.02); }
+    @media(max-width:600px){ .appt-card{flex-wrap:wrap;} .appt-actions{width:100%;} }
+  </style>
+</head>
+<body>
+<div class="dashboard-layout">
+  <!-- Sidebar -->
+  <aside class="sidebar">
+    <div class="sidebar-logo">
+      <a href="/">🏥 طبيبي<span>.</span></a>
+    </div>
+    <ul class="sidebar-nav">
+      <li class="sidebar-nav-item active" id="menu-home">
+        <a onclick="showSection('home')"><span class="nav-icon">🏠</span> الرئيسية</a>
+      </li>
+      <li class="sidebar-nav-item" id="menu-appointments">
+        <a onclick="showSection('appointments')"><span class="nav-icon">📅</span> مواعيدي</a>
+      </li>
+      <li class="sidebar-nav-item" id="menu-labs">
+        <a onclick="showSection('labs')"><span class="nav-icon">🔬</span> تحاليلي</a>
+      </li>
+      <li class="sidebar-nav-item" id="menu-notifications">
+        <a onclick="showSection('notifications')">
+          <span class="nav-icon">🔔</span> الإشعارات
+          <span class="notif-badge" id="sidebarBadge" style="position:static;margin-right:auto;display:none"></span>
+        </a>
+      </li>
+      <li class="sidebar-nav-item" id="menu-profile">
+        <a onclick="showSection('profile')"><span class="nav-icon">👤</span> حسابي</a>
+      </li>
+      <li class="sidebar-nav-item" style="margin-top:auto">
+        <a href="/search.html"><span class="nav-icon">🔍</span> البحث عن طبيب</a>
+      </li>
+      <li class="sidebar-nav-item">
+        <a onclick="logout()" style="color:rgba(255,100,100,0.9)"><span class="nav-icon">🚪</span> تسجيل الخروج</a>
+      </li>
+    </ul>
+  </aside>
+
+  <!-- Main Content -->
+  <main class="main-content">
+    <!-- Home Section -->
+    <section id="section-home">
+      <div class="page-header">
+        <h1 class="page-title" id="welcomeTitle">مرحباً 👋</h1>
+        <p class="page-subtitle">إليك ملخص حسابك اليوم</p>
+      </div>
+      <div class="stats-grid">
+        <div class="stat-card">
+          <div class="stat-icon blue">📅</div>
+          <div><div class="stat-value" id="statsTotal">0</div><div class="stat-label">إجمالي المواعيد</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">✅</div>
+          <div><div class="stat-value" id="statsConfirmed">0</div><div class="stat-label">مؤكدة</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon orange">🔬</div>
+          <div><div class="stat-value" id="statsLabs">0</div><div class="stat-label">تحاليل مطلوبة</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon red">🔔</div>
+          <div><div class="stat-value" id="statsNotifs">0</div><div class="stat-label">إشعارات جديدة</div></div>
+        </div>
+      </div>
+
+      <!-- Upcoming appointments -->
+      <div class="card">
+        <h3 style="margin-bottom:16px;color:var(--primary)">📅 مواعيدي القادمة</h3>
+        <div id="upcomingAppts"><div class="spinner"></div></div>
+      </div>
+    </section>
+
+    <!-- Appointments Section -->
+    <section id="section-appointments" style="display:none">
+      <div class="page-header">
+        <h1 class="page-title">📅 مواعيدي جميعها</h1>
+      </div>
+      <div style="display:flex;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+        <button class="btn btn-primary btn-sm" onclick="filterAppts('all')">الكل</button>
+        <button class="btn btn-outline btn-sm" onclick="filterAppts('confirmed')">المؤكدة</button>
+        <button class="btn btn-outline btn-sm" onclick="filterAppts('completed')">المكتملة</button>
+        <button class="btn btn-outline btn-sm" onclick="filterAppts('cancelled')">الملغاة</button>
+        <button class="btn btn-accent btn-sm" onclick="window.location='/search.html'" style="margin-right:auto">+ حجز موعد جديد</button>
+      </div>
+      <div id="allAppts"><div class="spinner"></div></div>
+    </section>
+
+    <!-- Labs Section -->
+    <section id="section-labs" style="display:none">
+      <div class="page-header">
+        <h1 class="page-title">🔬 تحاليلي</h1>
+      </div>
+      <a href="/labs.html" class="btn btn-primary" style="margin-bottom:20px;display:inline-flex">+ حجز تحليل جديد</a>
+      <div id="labOrders"><div class="spinner"></div></div>
+    </section>
+
+    <!-- Notifications Section -->
+    <section id="section-notifications" style="display:none">
+      <div class="page-header">
+        <h1 class="page-title">🔔 الإشعارات</h1>
+        <button class="btn btn-outline btn-sm" onclick="markAllRead()">تعليم الكل كمقروء</button>
+      </div>
+      <div id="notifsList"><div class="spinner"></div></div>
+    </section>
+
+    <!-- Profile Section -->
+    <section id="section-profile" style="display:none">
+      <div class="page-header">
+        <h1 class="page-title">👤 حسابي</h1>
+      </div>
+      <div class="card" style="max-width:560px">
+        <div id="profileInfo"></div>
+      </div>
+    </section>
+  </main>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  if (!requireAuth()) {}
+
+  const user = getUser();
+  let allAppointments = [];
+  let activeFilter = 'all';
+
+  // Init
+  document.getElementById('welcomeTitle').textContent = `مرحباً، ${user?.name?.split(' ')[0] || ''} 👋`;
+
+  const showSection = (name) => {
+    document.querySelectorAll('main section').forEach(s => s.style.display = 'none');
+    document.getElementById(`section-${name}`).style.display = 'block';
+    document.querySelectorAll('.sidebar-nav-item').forEach(i => i.classList.remove('active'));
+    document.getElementById(`menu-${name}`)?.classList.add('active');
+  };
+
+  const logout = () => { clearAuth(); window.location.href = '/login.html'; };
+
+  // Load data
+  const loadAll = async () => {
+    await Promise.all([loadAppointments(), loadNotifications(), loadLabOrders()]);
+  };
+
+  const loadAppointments = async () => {
+    try {
+      const { appointments } = await api('GET', '/appointments/my');
+      allAppointments = appointments;
+      const upcoming = appointments.filter(a => a.status === 'confirmed' && new Date(a.date) >= new Date()).slice(0, 5);
+      const confirmed = appointments.filter(a => a.status === 'confirmed').length;
+      document.getElementById('statsTotal').textContent = appointments.length;
+      document.getElementById('statsConfirmed').textContent = confirmed;
+
+      // Upcoming
+      const upEl = document.getElementById('upcomingAppts');
+      if (upcoming.length === 0) {
+        upEl.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:20px">لا توجد مواعيد قادمة. <a href="/search.html" style="color:var(--primary)">احجز موعداً الآن →</a></p>';
+      } else {
+        upEl.innerHTML = upcoming.map(a => renderApptCard(a)).join('');
+      }
+
+      // All appointments
+      renderAllAppts();
+    } catch {}
+  };
+
+  const renderApptCard = (a) => {
+    const d = new Date(a.date);
+    const months = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+    return `
+    <div class="appt-card">
+      <div class="appt-date-box">
+        <span class="appt-date-day">${d.getDate()}</span>
+        <span class="appt-date-month">${months[d.getMonth()]}</span>
+      </div>
+      <div class="appt-info">
+        <div class="appt-doctor">👨‍⚕️ د. ${a.doctor?.user?.name || 'غير محدد'}</div>
+        <div class="appt-meta">
+          <span>⏰ ${a.startTime}</span>
+          <span>🏥 ${a.doctor?.department || ''}</span>
+          <span>📍 ${a.doctor?.governorate || ''}</span>
+          <span>${statusBadge(a.status)}</span>
+        </div>
+      </div>
+      <div class="appt-actions">
+        ${a.status === 'confirmed' ? `<button class="btn btn-sm btn-danger" onclick="cancelAppt('${a._id}')">إلغاء</button>` : ''}
+        <button class="btn btn-sm btn-outline" onclick="window.location='/doctor-profile.html?id=${a.doctor?._id}'">الطبيب</button>
+      </div>
+    </div>`;
+  };
+
+  const renderAllAppts = () => {
+    const filtered = activeFilter === 'all' ? allAppointments : allAppointments.filter(a => a.status === activeFilter);
+    const el = document.getElementById('allAppts');
+    if (filtered.length === 0) {
+      el.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:40px">لا توجد مواعيد</p>';
+    } else {
+      el.innerHTML = filtered.map(a => renderApptCard(a)).join('');
+    }
+  };
+
+  const filterAppts = (status) => {
+    activeFilter = status;
+    document.querySelectorAll('#section-appointments .btn').forEach(b => {
+      b.classList.toggle('btn-primary', b.onclick?.toString().includes(`'${status}'`));
+      b.classList.toggle('btn-outline', !b.onclick?.toString().includes(`'${status}'`));
+    });
+    renderAllAppts();
+  };
+
+  const cancelAppt = async (id) => {
+    if (!confirm('هل أنت متأكد من إلغاء الموعد؟')) return;
+    try {
+      await api('PUT', `/appointments/${id}/cancel`, { reason: 'إلغاء من المريض' });
+      showToast('تم إلغاء الموعد', 'info');
+      loadAppointments();
+    } catch (err) {
+      showToast(err.message, 'error');
+    }
+  };
+
+  const loadNotifications = async () => {
+    try {
+      const { notifications } = await api('GET', '/auth/notifications');
+      const unread = notifications.filter(n => !n.isRead).length;
+      document.getElementById('statsNotifs').textContent = unread;
+      const badge = document.getElementById('sidebarBadge');
+      if (unread > 0) { badge.style.display = 'flex'; badge.textContent = unread; }
+
+      const el = document.getElementById('notifsList');
+      if (notifications.length === 0) {
+        el.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:40px">لا توجد إشعارات</p>';
+      } else {
+        el.innerHTML = notifications.map(n => `
+          <div class="notif-item ${n.isRead ? '' : 'unread'}">
+            <span style="font-size:1.4rem">${n.type === 'appointment' ? '📅' : n.type === 'lab' ? '🔬' : '🔔'}</span>
+            <div>
+              <p style="font-size:0.9rem">${n.message}</p>
+              <small style="color:var(--text-light)">${new Date(n.createdAt).toLocaleString('ar-IQ')}</small>
+            </div>
+          </div>
+        `).join('');
+      }
+    } catch {}
+  };
+
+  const markAllRead = async () => {
+    try {
+      await api('PUT', '/auth/notifications/read');
+      showToast('تم تعليم كل الإشعارات كمقروءة', 'success');
+      loadNotifications();
+    } catch {}
+  };
+
+  const loadLabOrders = async () => {
+    try {
+      const { orders } = await api('GET', '/labs/my-orders');
+      document.getElementById('statsLabs').textContent = orders.length;
+      const el = document.getElementById('labOrders');
+      if (orders.length === 0) {
+        el.innerHTML = `<p style="color:var(--text-light);text-align:center;padding:40px">لا توجد طلبات تحاليل. <a href="/labs.html" style="color:var(--primary)">احجز تحليلاً الآن →</a></p>`;
+      } else {
+        el.innerHTML = orders.map(o => `
+          <div class="appt-card">
+            <div class="appt-date-box" style="background:linear-gradient(135deg,#9C27B0,#673AB7);">
+              <span style="font-size:1.8rem">🔬</span>
+            </div>
+            <div class="appt-info">
+              <div class="appt-doctor">${o.lab?.name || 'مختبر غير محدد'}</div>
+              <div class="appt-meta">
+                <span>📍 ${o.lab?.governorate || ''}</span>
+                <span>📅 ${new Date(o.date).toLocaleDateString('ar-IQ')}</span>
+                <span>⏰ ${o.time || ''}</span>
+                <span style="font-weight:700">${statusBadge(o.status)}</span>
+              </div>
+              <div style="margin-top:12px;display:flex;gap:8px">
+                ${o.resultFiles && o.resultFiles.length > 0 ? o.resultFiles.map((file, i) => `<a href="${file}" target="_blank" class="btn btn-sm btn-outline">تحميل ملف النتيجة ${i+1}</a>`).join('') : ''}
+              </div>
+              ${o.resultNotes ? `<p style="margin-top:10px;font-size:0.85rem;color:var(--text-medium)"><strong>ملاحظات:</strong> ${o.resultNotes}</p>` : ''}
+            </div>
+          </div>
+        `).join('');
+      }
+    } catch {}
+  };
+
+  const loadProfile = () => {
+    const el = document.getElementById('profileInfo');
+    el.innerHTML = `
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:24px;">
+        <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,var(--primary),var(--primary-light));display:flex;align-items:center;justify-content:center;font-size:2rem;color:white;">👤</div>
+        <div><h2 style="margin:0">${user?.name}</h2><p style="color:var(--text-medium)">${user?.email}</p></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
+        <div><label class="form-label">الاسم</label><div style="padding:10px;background:var(--bg);border-radius:var(--radius-sm)">${user?.name}</div></div>
+        <div><label class="form-label">المحافظة</label><div style="padding:10px;background:var(--bg);border-radius:var(--radius-sm)">${user?.governorate || 'غير محدد'}</div></div>
+        <div style="grid-column:1/-1"><label class="form-label">البريد الإلكتروني</label><div style="padding:10px;background:var(--bg);border-radius:var(--radius-sm)">${user?.email}</div></div>
+      </div>
+    `;
+  };
+
+  // Show home by default
+  loadAll();
+  loadProfile();
+
+  // Show section based on hash
+  const hash = window.location.hash.replace('#', '');
+  if (hash && ['home','appointments','labs','notifications','profile'].includes(hash)) {
+    showSection(hash);
+  }
+</script>
+</body>
+</html>

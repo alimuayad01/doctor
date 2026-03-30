@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>البحث عن طبيب | طبيبي</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/main.css">
+  <style>
+    .search-page { padding-top: 80px; min-height: 100vh; }
+    .search-header { background: linear-gradient(135deg, var(--primary-dark), var(--primary)); padding: 40px 0; }
+    .search-header h1 { color: white; font-size: 1.8rem; margin-bottom: 24px; }
+    .search-filters { background: white; border-radius: var(--radius); padding: 24px; box-shadow: var(--shadow-sm); display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)) 120px; gap: 12px; align-items: end; }
+    .results-area { padding: 40px 0; }
+    .results-info { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+    .results-count { font-size: 0.9rem; color: var(--text-medium); }
+    .sort-select { padding: 8px 14px; border: 2px solid var(--border); border-radius: var(--radius-sm); font-family: var(--font); font-size: 0.9rem; color: var(--text-dark); background: white; cursor: pointer; outline:none; }
+    .no-results { text-align: center; padding: 80px 20px; color: var(--text-light); }
+    .no-results .icon { font-size: 4rem; margin-bottom: 16px; }
+    .pagination { display: flex; justify-content: center; gap: 8px; margin-top: 40px; }
+    .page-btn { width: 40px; height: 40px; border: 2px solid var(--border); border-radius: var(--radius-sm); background: white; cursor: pointer; font-family: var(--font); font-weight: 600; transition: var(--transition); }
+    .page-btn:hover, .page-btn.active { background: var(--primary); border-color: var(--primary); color: white; }
+    @media(max-width:768px){ .search-filters{ grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar scrolled" style="background:rgba(255,255,255,0.98)!important;backdrop-filter:blur(20px);">
+  <div class="nav-inner">
+    <a class="nav-logo" href="/" style="color:var(--primary)">🏥 طبيبي<span>.</span></a>
+    <div class="nav-links" id="navLinks" style="display:flex">
+      <a class="nav-link" href="/search.html" style="color:var(--primary);background:rgba(26,107,138,0.08)">البحث عن طبيب</a>
+      <a class="nav-link" href="/departments.html" style="color:var(--text-dark)">الأقسام الطبية</a>
+      <a class="nav-link" href="/labs.html" style="color:var(--text-dark)">المختبرات</a>
+    </div>
+    <div class="nav-actions" id="navActions"></div>
+  </div>
+</nav>
+
+<div class="search-page">
+  <div class="search-header">
+    <div class="container">
+      <h1>🔍 ابحث عن طبيبك</h1>
+      <div class="search-filters">
+        <div class="form-group" style="margin:0">
+          <label class="form-label" style="color:var(--text-medium)">المحافظة</label>
+          <select class="form-control" id="filterGov">
+            <option value="">كل المحافظات</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label" style="color:var(--text-medium)">القسم الطبي</label>
+          <select class="form-control" id="filterDept">
+            <option value="">كل الأقسام</option>
+          </select>
+        </div>
+        <div class="form-group" style="margin:0">
+          <label class="form-label" style="color:var(--text-medium)">اسم الطبيب</label>
+          <input type="text" class="form-control" id="filterName" placeholder="بحث باسم الطبيب...">
+        </div>
+        <button class="btn btn-primary" onclick="searchDoctors(1)" style="height:48px">بحث</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="results-area">
+    <div class="container">
+      <div class="results-info">
+        <p class="results-count" id="resultsCount">جاري البحث...</p>
+        <select class="sort-select" onchange="sortResults(this.value)">
+          <option value="rating">الأعلى تقييماً</option>
+          <option value="appointments">الأكثر طلباً</option>
+        </select>
+      </div>
+      <div class="doctors-grid" id="resultsGrid">
+        <div class="spinner" style="grid-column:1/-1"></div>
+      </div>
+      <div class="pagination" id="pagination"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Booking Modal -->
+<div id="bookingModal" style="display:none" class="modal-overlay" onclick="if(event.target===this)closeModal()">
+  <div class="modal">
+    <div class="modal-header">
+      <h3>📅 حجز موعد</h3>
+      <button class="modal-close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div id="modalDoctorInfo" style="display:flex;align-items:center;gap:12px;padding:16px;background:var(--secondary);border-radius:var(--radius-sm);margin-bottom:20px;"></div>
+      <div class="form-group">
+        <label class="form-label">📅 اختر التاريخ</label>
+        <input type="date" class="form-control" id="bookDate" min="" onchange="loadSlots()">
+      </div>
+      <div id="slotsSection" style="display:none">
+        <label class="form-label">⏰ اختر الوقت المناسب</label>
+        <div class="time-slots-grid" id="slotsGrid"></div>
+      </div>
+      <div class="form-group" style="margin-top:16px">
+        <label class="form-label">نوع الزيارة</label>
+        <select class="form-control" id="bookType">
+          <option value="كشف">كشف أول</option>
+          <option value="متابعة">متابعة</option>
+          <option value="استشارة">استشارة</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label">ملاحظات (اختياري)</label>
+        <textarea class="form-control" id="bookNotes" placeholder="أي معلومات تريد إيصالها للطبيب..."></textarea>
+      </div>
+      <div id="bookAlert"></div>
+      <button class="btn btn-primary btn-full btn-lg" onclick="confirmBooking()" id="bookBtn">✅ تأكيد الحجز</button>
+    </div>
+  </div>
+</div>
+
+<script src="/js/api.js"></script>
+<script>
+  let currentDoctorId = null;
+  let selectedSlot = null;
+  let currentPage = 1;
+  let totalPages = 1;
+
+  // Setup navbar
+  const user = getUser();
+  const navActions = document.getElementById('navActions');
+  if (user && getToken()) {
+    const dashboards = { doctor: '/dashboard-doctor.html', institution: '/dashboard-institution.html', patient: '/dashboard-patient.html' };
+    navActions.innerHTML = `
+      <button class="btn btn-outline btn-sm" onclick="window.location='${dashboards[user.role] || '/dashboard-patient.html'}'">لوحة التحكم</button>
+    `;
+  } else {
+    navActions.innerHTML = `
+      <button class="btn btn-outline btn-sm" onclick="window.location='/login.html'">الدخول</button>
+      <button class="btn btn-primary btn-sm" onclick="window.location='/register.html'">سجل</button>
+    `;
+  }
+
+  // Load filters
+  const loadFilters = async () => {
+    const [govRes, deptRes] = await Promise.all([
+      api('GET', '/departments/governorates'),
+      api('GET', '/departments'),
+    ]).catch(() => [{governorates:[]},{departments:[]}]);
+    
+    const govSel = document.getElementById('filterGov');
+    const deptSel = document.getElementById('filterDept');
+    (govRes.governorates||[]).forEach(g => govSel.innerHTML += `<option value="${g}">${g}</option>`);
+    (deptRes.departments||[]).forEach(d => deptSel.innerHTML += `<option value="${d.name}">${d.icon} ${d.name}</option>`);
+
+    // Apply URL params
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('gov')) govSel.value = params.get('gov');
+    if (params.get('dept')) deptSel.value = params.get('dept');
+    if (params.get('name')) document.getElementById('filterName').value = params.get('name');
+  };
+
+  const searchDoctors = async (page = 1) => {
+    currentPage = page;
+    const gov = document.getElementById('filterGov').value;
+    const dept = document.getElementById('filterDept').value;
+    const name = document.getElementById('filterName').value;
+
+    const params = new URLSearchParams({ page, limit: 12 });
+    if (gov) params.set('governorate', gov);
+    if (dept) params.set('department', dept);
+    if (name) params.set('name', name);
+
+    document.getElementById('resultsGrid').innerHTML = '<div class="spinner" style="grid-column:1/-1"></div>';
+
+    try {
+      const { doctors, total, pages } = await api('GET', `/doctors?${params}`);
+      totalPages = pages;
+
+      document.getElementById('resultsCount').textContent = `تم العثور على ${total} طبيب`;
+
+      if (!doctors || doctors.length === 0) {
+        document.getElementById('resultsGrid').innerHTML = `
+          <div class="no-results" style="grid-column:1/-1">
+            <div class="icon">🔍</div>
+            <h3>لم يتم العثور على نتائج</h3>
+            <p style="color:var(--text-light);margin-top:8px">جرّب تغيير معايير البحث</p>
+          </div>`;
+        document.getElementById('pagination').innerHTML = '';
+        return;
+      }
+
+      document.getElementById('resultsGrid').innerHTML = doctors.map(d => `
+        <div class="doctor-card">
+          <div class="doctor-card-header">
+            <div class="doctor-avatar">${d.user?.avatar ? `<img src="${d.user.avatar}" style="width:100%;height:100%;border-radius:50%;object-fit:cover">` : '👨‍⚕️'}</div>
+            <div>
+              <div class="doctor-card-name">د. ${d.user?.name || 'غير محدد'}</div>
+              <div class="doctor-card-spec">${d.specialization}</div>
+            </div>
+          </div>
+          <div class="doctor-card-body">
+            <div class="doctor-meta">
+              <div class="doctor-meta-item">📍 ${d.governorate}</div>
+              <div class="doctor-meta-item">🏥 ${d.department}</div>
+              ${d.clinicName ? `<div class="doctor-meta-item">🏢 ${d.clinicName}</div>` : ''}
+              ${d.consultationFee ? `<div class="doctor-meta-item">💵 ${d.consultationFee.toLocaleString()} دينار</div>` : ''}
+            </div>
+            <div class="rating" style="margin-bottom:12px;">
+              ${renderStars(d.averageRating || 0)}
+              <span class="rating-num" style="margin-right:6px;">${(d.averageRating || 0).toFixed(1)} (${d.totalReviews || 0} تقييم)</span>
+            </div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-outline btn-sm" style="flex:1" onclick="window.location='/doctor-profile.html?id=${d._id}'">عرض الملف</button>
+              <button class="btn btn-primary btn-sm" style="flex:1" onclick="openBooking('${d._id}','${d.user?.name}','${d.specialization}','${d.governorate}')">📅 احجز</button>
+            </div>
+          </div>
+        </div>
+      `).join('');
+
+      // Pagination
+      let pagHtml = '';
+      if (page > 1) pagHtml += `<button class="page-btn" onclick="searchDoctors(${page-1})">‹</button>`;
+      for (let i = 1; i <= pages; i++) {
+        pagHtml += `<button class="page-btn${i===page?' active':''}" onclick="searchDoctors(${i})">${i}</button>`;
+      }
+      if (page < pages) pagHtml += `<button class="page-btn" onclick="searchDoctors(${page+1})">›</button>`;
+      document.getElementById('pagination').innerHTML = pagHtml;
+    } catch (err) {
+      document.getElementById('resultsGrid').innerHTML = `<p style="grid-column:1/-1;text-align:center;color:var(--danger)">خطأ في تحميل النتائج: ${err.message}</p>`;
+    }
+  };
+
+  const sortResults = (by) => searchDoctors(1);
+
+  // Booking flow
+  const openBooking = (doctorId, name, spec, gov) => {
+    if (!getToken()) {
+      showToast('يجب تسجيل الدخول أولاً لحجز موعد', 'warning');
+      setTimeout(() => window.location = '/login.html', 1500);
+      return;
+    }
+    currentDoctorId = doctorId;
+    selectedSlot = null;
+    document.getElementById('modalDoctorInfo').innerHTML = `
+      <span style="font-size:2rem">👨‍⚕️</span>
+      <div><strong>د. ${name}</strong><br><small style="color:var(--text-medium)">${spec} - ${gov}</small></div>
+    `;
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('bookDate').min = today;
+    document.getElementById('bookDate').value = '';
+    document.getElementById('slotsSection').style.display = 'none';
+    document.getElementById('bookAlert').innerHTML = '';
+    document.getElementById('bookingModal').style.display = 'flex';
+  };
+
+  const closeModal = () => { document.getElementById('bookingModal').style.display = 'none'; };
+
+  const loadSlots = async () => {
+    const date = document.getElementById('bookDate').value;
+    if (!date) return;
+    const section = document.getElementById('slotsSection');
+    const grid = document.getElementById('slotsGrid');
+    section.style.display = 'block';
+    grid.innerHTML = '<div class="spinner"></div>';
+    selectedSlot = null;
+
+    try {
+      const { slots, duration } = await api('GET', `/doctors/${currentDoctorId}/available-slots?date=${date}`);
+      if (!slots || slots.length === 0) {
+        grid.innerHTML = '<p style="color:var(--text-light);text-align:center;padding:20px">لا توجد أوقات متاحة في هذا اليوم</p>';
+        return;
+      }
+      grid.innerHTML = slots.map(s => `
+        <div class="time-slot${s.isBooked?' booked':''}" onclick="${s.isBooked?'':'selectSlot(\''+s.time+'\',this)'}">
+          ${s.time}
+        </div>
+      `).join('');
+    } catch (err) {
+      grid.innerHTML = `<p style="color:var(--danger);text-align:center;">${err.message}</p>`;
+    }
+  };
+
+  const selectSlot = (time, el) => {
+    document.querySelectorAll('.time-slot').forEach(s => s.classList.remove('selected'));
+    el.classList.add('selected');
+    selectedSlot = time;
+  };
+
+  const confirmBooking = async () => {
+    const alertBox = document.getElementById('bookAlert');
+    alertBox.innerHTML = '';
+
+    if (!selectedSlot) {
+      alertBox.innerHTML = '<div class="alert alert-error">يرجى اختيار وقت الموعد</div>';
+      return;
+    }
+
+    const date = document.getElementById('bookDate').value;
+    if (!date) {
+      alertBox.innerHTML = '<div class="alert alert-error">يرجى اختيار التاريخ</div>';
+      return;
+    }
+
+    const btn = document.getElementById('bookBtn');
+    btn.disabled = true;
+    btn.textContent = 'جاري الحجز...';
+
+    try {
+      await api('POST', '/appointments', {
+        doctorId: currentDoctorId,
+        date,
+        startTime: selectedSlot,
+        type: document.getElementById('bookType').value,
+        notes: document.getElementById('bookNotes').value,
+      });
+      closeModal();
+      showToast('تم تأكيد موعدك بنجاح! ✅', 'success', 4000);
+    } catch (err) {
+      alertBox.innerHTML = `<div class="alert alert-error">❌ ${err.message}</div>`;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '✅ تأكيد الحجز';
+    }
+  };
+
+  // Init
+  loadFilters().then(() => searchDoctors(1));
+
+  // Enter key search
+  document.getElementById('filterName').addEventListener('keydown', e => { if (e.key === 'Enter') searchDoctors(1); });
+</script>
+</body>
+</html>
