@@ -70,23 +70,38 @@ router.get('/doctor', protect, authorize('doctor'), async (req, res) => {
 
 const multer = require('multer');
 const path = require('path');
+const fs = require('fs');
+
+// Ensure upload directory exists
+const casesUploadDir = path.join(process.env.UPLOADS_DIR || path.join(__dirname, '../../uploads'), 'cases');
+if (!fs.existsSync(casesUploadDir)) fs.mkdirSync(casesUploadDir, { recursive: true });
 
 // Multer Config
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, 'public/uploads/cases/'),
+  destination: (req, file, cb) => cb(null, casesUploadDir),
   filename: (req, file, cb) => cb(null, `case-${Date.now()}${path.extname(file.originalname)}`)
 });
 const upload = multer({ 
   storage,
-  limits: { fileSize: 5 * 1024 * 1024 } // 5MB
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    if (/^image\/(jpeg|png|gif|webp)$/.test(file.mimetype)) return cb(null, true);
+    cb(new Error('نوع صورة الحالة غير مسموح به'));
+  }
 });
+
+const allowedPaymentMethods = ['cash', 'zaincash', 'mastercard'];
 
 // @route POST /api/appointments  (Patient book)
 router.post('/', protect, authorize('patient'), upload.single('caseImage'), async (req, res) => {
   try {
-    const { doctorId, date, startTime, type, notes, priority, paymentMethod } = req.body;
+    const { doctorId, date, startTime, type, notes, priority, paymentMethod = 'cash', paymentAccountId } = req.body;
     const doctor = await Doctor.findById(doctorId).populate('user', 'name');
     if (!doctor) return res.status(404).json({ success: false, message: 'الطبيب غير موجود' });
+    if (!date || !startTime) return res.status(400).json({ success: false, message: 'التاريخ والوقت مطلوبان' });
+    if (!allowedPaymentMethods.includes(paymentMethod)) {
+      return res.status(400).json({ success: false, message: 'طريقة الدفع غير صحيحة' });
+    }
     
     if (!doctor.isAcceptingAppointments)
       return res.status(400).json({ success: false, message: 'الطبيب لا يقبل مواعيد حالياً' });
@@ -106,6 +121,24 @@ router.post('/', protect, authorize('patient'), upload.single('caseImage'), asyn
     const isAutoApprove = (doctor.autoApprove && doctor.autoApprove[priority || 'normal']);
     const status = isAutoApprove ? 'confirmed' : 'pending';
 
+    const isDigitalPayment = paymentMethod !== 'cash';
+    let selectedPaymentAccountId = null;
+    if (isDigitalPayment) {
+      if (!paymentAccountId) {
+        return res.status(400).json({ success: false, message: 'يرجى اختيار وسيلة دفع محفوظة' });
+      }
+      const patient = await User.findById(req.user._id).select('paymentAccounts');
+      const account = patient.paymentAccounts.id(paymentAccountId);
+      const isMatchingAccount = account && (
+        (paymentMethod === 'zaincash' && account.accountType === 'zaincash') ||
+        (paymentMethod === 'mastercard' && account.accountType === 'card')
+      );
+      if (!isMatchingAccount) {
+        return res.status(400).json({ success: false, message: 'وسيلة الدفع المختارة غير صالحة لهذا الحجز' });
+      }
+      selectedPaymentAccountId = account._id;
+    }
+
     const appointment = await Appointment.create({
       patient: req.user._id,
       doctor: doctorId,
@@ -117,7 +150,10 @@ router.post('/', protect, authorize('patient'), upload.single('caseImage'), asyn
       priority: priority || 'normal',
       notes,
       price,
-      paymentMethod: paymentMethod || 'cash',
+      paymentMethod,
+      paymentAccountId: selectedPaymentAccountId,
+      transactionId: isDigitalPayment ? `TXN-${Date.now()}-${Math.random().toString(36).substr(2, 5).toUpperCase()}` : null,
+      isPaid: isDigitalPayment,
       caseImage: req.file ? `/uploads/cases/${req.file.filename}` : null,
       status
     });

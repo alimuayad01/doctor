@@ -17,7 +17,10 @@ const startCronJobs = () => {
       const upcomingAppointments = await Appointment.find({
         status: 'confirmed',
         reminderHourSent: false,
-        date: { $gte: new Date(now.toDateString()), $lte: new Date(now.toDateString() + ' 23:59') }
+        date: {
+          $gte: new Date(new Date(now).setHours(0, 0, 0, 0)),
+          $lte: new Date(new Date(now).setHours(23, 59, 59, 999))
+        }
       }).populate({ path: 'doctor', populate: { path: 'user', select: 'name' } });
 
       for (const appt of upcomingAppointments) {

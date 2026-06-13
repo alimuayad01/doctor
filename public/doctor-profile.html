@@ -149,15 +149,19 @@
 
           <div class="form-group">
             <label class="form-label">طريقة الدفع</label>
-            <select class="form-control" id="paymentMethod">
-              <script>
-                document.write(`
-                  <option value="cash">💵 دفع نقدي في العيادة</option>
-                  <option value="zaincash">📲 Zain Cash</option>
-                  <option value="mastercard">💳 MasterCard / Visa</option>
-                `);
-              </script>
+            <select class="form-control" id="paymentMethod" onchange="togglePaymentSource()">
+              <option value="cash">💵 دفع نقدي في العيادة</option>
+              <option value="zaincash">📲 زين كاش (Zain Cash)</option>
+              <option value="mastercard">💳 ماستر كارد / فيزا</option>
             </select>
+          </div>
+
+          <div id="paymentSourceSection" style="display:none; margin-top:10px;">
+            <label class="form-label">اختر البطاقة/المحفظة المحفوظة</label>
+            <select class="form-control" id="paymentSource"></select>
+            <div style="margin-top:8px">
+              <a href="/dashboard-patient.html#payments" style="color:var(--primary);font-size:0.8rem;text-decoration:none;">+ إضافة وسيلة دفع جديدة</a>
+            </div>
           </div>
 
           <div id="bookAlert"></div>
@@ -338,6 +342,11 @@
     
     const priority = document.querySelector('input[name="priority"]:checked').value;
     const paymentMethod = document.getElementById('paymentMethod').value;
+    const paymentAccountId = document.getElementById('paymentSource')?.value;
+    if (paymentMethod !== 'cash' && !paymentAccountId) {
+      showToast('يرجى إضافة أو اختيار وسيلة دفع محفوظة أولاً', 'warning');
+      return;
+    }
     const caseImageFile = document.getElementById('caseImage').files[0];
     
     const fd = new FormData();
@@ -348,6 +357,8 @@
     fd.append('paymentMethod', paymentMethod);
     fd.append('type', priority === 'normal' ? 'كشف' : (priority === 'urgent' ? 'مستعجل' : 'طارئ'));
     if (caseImageFile) fd.append('caseImage', caseImageFile);
+    
+    if (paymentAccountId) fd.append('paymentAccountId', paymentAccountId);
     
     const btn = document.getElementById('bookBtn');
     btn.disabled = true; btn.textContent = '...';
@@ -374,8 +385,40 @@
     } catch (err) { showToast(err.message, 'error'); }
   };
 
+  const togglePaymentSource = () => {
+    const method = document.getElementById('paymentMethod').value;
+    const sourceSection = document.getElementById('paymentSourceSection');
+    if (method !== 'cash') {
+      sourceSection.style.display = 'block';
+      loadUserAccounts(method);
+    } else {
+      sourceSection.style.display = 'none';
+    }
+  };
+
+  const loadUserAccounts = async (type) => {
+    try {
+      const { accounts } = await api('GET', '/auth/payment-accounts');
+      const filtered = accounts.filter(acc => 
+        (type === 'zaincash' && acc.accountType === 'zaincash') || 
+        (type === 'mastercard' && acc.accountType === 'card')
+      );
+      
+      const sel = document.getElementById('paymentSource');
+      if (filtered.length === 0) {
+        sel.innerHTML = '<option value="">لا توجد وسائل محفوظة لهذا النوع</option>';
+        showToast('لا توجد وسيلة دفع محفوظة لهذا النوع. أضف واحدة من لوحة المريض.', 'warning');
+      } else {
+        sel.innerHTML = filtered.map(acc => `
+          <option value="${acc._id}" ${acc.isDefault ? 'selected' : ''}>
+            ${acc.accountType === 'card' ? `${acc.provider.toUpperCase()} (**** ${acc.last4})` : `Zain Cash (${acc.walletNumber})`}
+          </option>
+        `).join('');
+      }
+    } catch {}
+  };
+
   loadDoctor();
-</script>
 </script>
 
 <div id="printableReceipt"></div>

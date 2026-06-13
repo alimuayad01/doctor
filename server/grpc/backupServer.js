@@ -19,7 +19,7 @@ async function triggerBackup(call, callback) {
     const prefix = call.request.prefix || 'auto';
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const fileName = `backup-${prefix}-${timestamp}.json`;
-    const backupDir = path.join(__dirname, '../../backups');
+    const backupDir = process.env.BACKUPS_DIR || path.join(__dirname, '../../backups');
     
     if (!fs.existsSync(backupDir)) fs.mkdirSync(backupDir, { recursive: true });
 

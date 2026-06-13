@@ -40,11 +40,21 @@ const UserSchema = new mongoose.Schema({
     createdAt: { type: Date, default: Date.now },
     data: mongoose.Schema.Types.Mixed,
   }],
+  paymentAccounts: [{
+    accountType: { type: String, enum: ['card', 'zaincash'], required: true },
+    provider: { type: String, enum: ['mastercard', 'visa', 'zaincash'] },
+    holderName: String,
+    last4: String,
+    expiryDate: String,
+    walletNumber: String,
+    isDefault: { type: Boolean, default: false },
+    createdAt: { type: Date, default: Date.now }
+  }],
   fcmToken: { type: String, default: null },
 }, { timestamps: true });
 
 // Actions before save
-UserSchema.pre('save', async function (next) {
+UserSchema.pre('save', async function () {
   if (this.isModified('phone')) {
     // 1. Create searchable hash for uniqueness check
     this.phoneHash = crypto.createHash('sha256').update(this.phone).digest('hex');
@@ -56,7 +66,6 @@ UserSchema.pre('save', async function (next) {
     const salt = await bcrypt.genSalt(10);
     this.password = await bcrypt.hash(this.password, salt);
   }
-  next();
 });
 
 // Match password

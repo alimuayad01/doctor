@@ -200,4 +200,118 @@ router.post('/verify-otp', async (req, res, next) => {
   }
 });
 
+// --- Payment Methods Management ---
+
+const sanitizeDigits = (value = '') => String(value).replace(/\D/g, '');
+const publicPaymentAccounts = (accounts = []) => accounts.map(acc => ({
+  _id: acc._id,
+  accountType: acc.accountType,
+  provider: acc.provider,
+  holderName: acc.holderName,
+  last4: acc.last4,
+  expiryDate: acc.expiryDate,
+  walletNumber: acc.walletNumber,
+  isDefault: acc.isDefault,
+  createdAt: acc.createdAt
+}));
+
+// @route POST /api/auth/payment-accounts
+router.post('/payment-accounts', protect, async (req, res, next) => {
+  try {
+    const { accountType, provider, holderName, cardNumber, expiryDate, walletNumber, isDefault } = req.body;
+    if (!['card', 'zaincash'].includes(accountType)) {
+      return res.status(400).json({ success: false, message: 'نوع الحساب غير صحيح' });
+    }
+    
+    const newAccount = { 
+      accountType, 
+      provider: accountType === 'card' ? provider : 'zaincash',
+      holderName: holderName?.trim(),
+      expiryDate: expiryDate?.trim(),
+      isDefault: Boolean(isDefault)
+    };
+    
+    if (accountType === 'card') {
+      const digits = sanitizeDigits(cardNumber);
+      if (!['mastercard', 'visa'].includes(provider)) {
+        return res.status(400).json({ success: false, message: 'مزود البطاقة غير صحيح' });
+      }
+      if (digits.length < 12 || digits.length > 19) {
+        return res.status(400).json({ success: false, message: 'رقم البطاقة غير صحيح' });
+      }
+      if (!holderName?.trim()) {
+        return res.status(400).json({ success: false, message: 'اسم صاحب البطاقة مطلوب' });
+      }
+      if (!/^(0[1-9]|1[0-2])\/\d{2}$/.test(String(expiryDate || '').trim())) {
+        return res.status(400).json({ success: false, message: 'تاريخ الانتهاء يجب أن يكون بصيغة MM/YY' });
+      }
+      newAccount.last4 = digits.slice(-4);
+    } else {
+      const walletDigits = sanitizeDigits(walletNumber);
+      if (!/^07\d{9}$/.test(walletDigits)) {
+        return res.status(400).json({ success: false, message: 'رقم محفظة زين كاش غير صحيح' });
+      }
+      newAccount.walletNumber = walletDigits;
+    }
+
+    const user = await User.findById(req.user.id);
+    if (newAccount.isDefault) {
+      user.paymentAccounts.forEach(acc => acc.isDefault = false);
+    } else if (user.paymentAccounts.length === 0) {
+      newAccount.isDefault = true;
+    }
+
+    user.paymentAccounts.push(newAccount);
+    await user.save();
+
+    res.json({ success: true, message: 'تم إضافة وسيلة الدفع بنجاح ✅', accounts: publicPaymentAccounts(user.paymentAccounts) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// @route GET /api/auth/payment-accounts
+router.get('/payment-accounts', protect, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    res.json({ success: true, accounts: publicPaymentAccounts(user.paymentAccounts) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// @route DELETE /api/auth/payment-accounts/:id
+router.delete('/payment-accounts/:id', protect, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const account = user.paymentAccounts.id(req.params.id);
+    if (!account) return res.status(404).json({ success: false, message: 'وسيلة الدفع غير موجودة' });
+    const wasDefault = account.isDefault;
+    account.deleteOne();
+    if (wasDefault && user.paymentAccounts.length > 0) {
+      user.paymentAccounts[0].isDefault = true;
+    }
+    await user.save();
+    res.json({ success: true, message: 'تم حذف وسيلة الدفع 🗑️', accounts: publicPaymentAccounts(user.paymentAccounts) });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// @route PUT /api/auth/payment-accounts/:id/default
+router.put('/payment-accounts/:id/default', protect, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user.id);
+    const account = user.paymentAccounts.id(req.params.id);
+    if (!account) return res.status(404).json({ success: false, message: 'وسيلة الدفع غير موجودة' });
+    user.paymentAccounts.forEach(acc => {
+      acc.isDefault = (acc._id.toString() === req.params.id);
+    });
+    await user.save();
+    res.json({ success: true, message: 'تم تعيين وسيلة الدفع كافتراضية ⭐', accounts: publicPaymentAccounts(user.paymentAccounts) });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

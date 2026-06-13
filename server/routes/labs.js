@@ -99,9 +99,9 @@ router.get('/lab-orders', protect, authorize('doctor', 'institution'), async (re
 
 // @route PUT /api/labs/order/:id/upload  (Doctor/Institution: upload result files)
 const upload = require('../middleware/upload');
-router.put('/order/:id/upload', protect, authorize('doctor', 'institution'), upload.array('results', 5), async (req, res) => {
+router.put('/order/:id/upload', protect, authorize('doctor', 'institution'), upload.array('lab', 5), async (req, res) => {
   try {
-    const files = (req.files || []).map(f => `/uploads/${f.filename}`);
+    const files = (req.files || []).map(f => `/uploads/labs/${f.filename}`);
     const order = await LabOrder.findByIdAndUpdate(
       req.params.id,
       { $push: { resultFiles: { $each: files } }, status: 'ready', resultNotes: req.body.notes },

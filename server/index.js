@@ -8,9 +8,6 @@ const connectDB = require('./config/db');
 const { startCronJobs } = require('./services/cronJobs');
 const { startGrpcServer } = require('./grpc/backupServer');
 
-// Connect to DB
-connectDB();
-
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server, { cors: { origin: '*' } });
@@ -31,7 +28,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // Static files
 app.use(express.static(path.join(__dirname, '../public')));
-app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/uploads', express.static(process.env.UPLOADS_DIR || path.join(__dirname, '../uploads')));
 
 // API Routes
 app.use('/api/auth', require('./routes/auth'));
@@ -58,10 +55,33 @@ app.use((err, req, res, next) => {
   res.status(500).json({ success: false, message: 'خطأ في الخادم' });
 });
 
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`\n🏥 منصة طبيبي تعمل على: http://localhost:${PORT}`);
-  console.log(`⚙️  البيئة: ${process.env.NODE_ENV}`);
-  startCronJobs();
-  startGrpcServer();
-});
+let started = false;
+
+const startServer = async ({ port = process.env.PORT || 5000, enableGrpc = process.env.ENABLE_GRPC !== 'false' } = {}) => {
+  if (started) return server;
+  started = true;
+
+  connectDB();
+
+  return new Promise((resolve, reject) => {
+    server.once('error', reject);
+    server.listen(port, '127.0.0.1', () => {
+      server.off('error', reject);
+      const actualPort = server.address().port;
+      console.log(`\n🏥 منصة طبيبي تعمل على: http://localhost:${actualPort}`);
+      console.log(`⚙️  البيئة: ${process.env.NODE_ENV}`);
+      startCronJobs();
+      if (enableGrpc) startGrpcServer();
+      resolve(server);
+    });
+  });
+};
+
+if (require.main === module) {
+  startServer().catch((err) => {
+    console.error('فشل تشغيل الخادم:', err);
+    process.exit(1);
+  });
+}
+
+module.exports = { app, server, startServer };

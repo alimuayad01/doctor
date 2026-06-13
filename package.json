@@ -2,10 +2,12 @@
   "name": "tabibi-app",
   "version": "1.0.0",
   "description": "منصة طبيبي لحجز المواعيد الطبية في العراق",
-  "main": "server/index.js",
+  "main": "electron/main.js",
   "scripts": {
     "start": "node server/index.js",
     "dev": "nodemon server/index.js",
+    "desktop": "electron .",
+    "dist:win": "electron-builder --win nsis",
     "seed": "node scripts/seed.js",
     "backup": "node scripts/backup_db.js"
   },
@@ -17,6 +19,31 @@
   ],
   "author": "Tabibi Team",
   "license": "ISC",
+  "build": {
+    "appId": "iq.tabibi.desktop",
+    "productName": "طبيبي",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**/*",
+      "server/**/*",
+      "public/**/*",
+      "scripts/**/*",
+      "package.json",
+      ".env"
+    ],
+    "win": {
+      "target": "nsis"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "طبيبي"
+    }
+  },
   "dependencies": {
     "@grpc/grpc-js": "^1.14.3",
     "@grpc/proto-loader": "^0.8.0",
@@ -32,6 +59,8 @@
     "socket.io": "^4.8.3"
   },
   "devDependencies": {
+    "electron": "^39.8.10",
+    "electron-builder": "^26.15.3",
     "nodemon": "^3.1.14"
   }
 }

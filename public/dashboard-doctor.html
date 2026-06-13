@@ -32,6 +32,7 @@
       <li class="sidebar-nav-item" id="menu-profile"><a onclick="showSection('profile')"><span class="nav-icon">👨‍⚕️</span> ملفي الطبي</a></li>
       <li class="sidebar-nav-item" id="menu-reviews"><a onclick="showSection('reviews')"><span class="nav-icon">⭐</span> التقييمات</a></li>
       <li class="sidebar-nav-item" id="menu-notifications"><a onclick="showSection('notifications')"><span class="nav-icon">🔔</span> الإشعارات</a></li>
+      <li class="sidebar-nav-item" id="menu-payments"><a onclick="showSection('payments')"><span class="nav-icon">💳</span> الحسابات المالية</a></li>
       <li class="sidebar-nav-item"><a onclick="logout()" style="color:rgba(255,100,100,0.9)"><span class="nav-icon">🚪</span> خروج</a></li>
     </ul>
   </aside>
@@ -128,6 +129,25 @@
         <div class="page-header"><h1 class="page-title">🔔 الإشعارات</h1><button class="btn btn-outline btn-sm" onclick="markAllRead()">تعليم الكل كمقروء</button></div>
         <div id="notifsList"><div class="spinner"></div></div>
       </section>
+
+      <!-- Payments -->
+      <section id="section-payments" style="display:none">
+        <div class="page-header"><h1 class="page-title">💳 الحسابات المالية والاستلام</h1></div>
+        <div id="accountsList" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;margin-bottom:30px;">
+          <div class="spinner"></div>
+        </div>
+        <div class="card" style="max-width:500px;margin:0 auto;">
+          <h3 style="margin-bottom:20px;text-align:center;">➕ إضافة حساب استلام جديد</h3>
+          <div class="form-group"><label class="form-label">نوع الحساب</label><select class="form-control" id="accType" onchange="toggleAccFields()"><option value="card">بطاقة مصرفية</option><option value="zaincash">زين كاش (Zain Cash)</option></select></div>
+          <div id="cardFields">
+            <div class="form-group"><label class="form-label">اسم صاحب البطاقة</label><input type="text" class="form-control" id="cardHolder" placeholder="الاسم كما يظهر على البطاقة"></div>
+            <div class="form-group"><label class="form-label">رقم البطاقة</label><input type="text" class="form-control" id="cardNumber" placeholder="0000 0000 0000 0000"></div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px"><div class="form-group"><label class="form-label">تاريخ الانتهاء</label><input type="text" class="form-control" id="cardExpiry" placeholder="MM/YY"></div><div class="form-group"><label class="form-label">المزود</label><select class="form-control" id="cardProvider"><option value="mastercard">Mastercard</option><option value="visa">Visa</option></select></div></div>
+          </div>
+          <div id="zainFields" style="display:none"><div class="form-group"><label class="form-label">رقم محفظة زين كاش</label><input type="text" class="form-control" id="walletNumber" placeholder="07XXXXXXXX"></div></div>
+          <button class="btn btn-primary btn-full" onclick="addPaymentAccount()">حفظ الحساب</button>
+        </div>
+      </section>
     </div>
   </main>
 </div>
@@ -152,6 +172,7 @@
     if (name === 'profile') loadProfileSection();
     if (name === 'reviews') loadReviews();
     if (name === 'notifications') loadNotifications();
+    if (name === 'payments') loadPaymentAccounts();
   };
 
   const logout = () => { clearAuth(); window.location.href = '/login.html'; };
@@ -286,7 +307,14 @@
             <div style="margin-top:12px; width:100%; border-top: 1px solid var(--border); padding-top:12px; display:flex; flex-wrap:wrap; gap:15px; justify-content:space-between; align-items:center;">
                 <div style="font-size:0.85rem">
                     <div>📱 <a href="tel:${a.patient?.phone}" style="color:var(--primary)">ارسل رسالة / اتصل</a></div>
-                    <div>💵 القيمة: <span style="font-weight:700">${(a.price || 0).toLocaleString()} د.ع</span></div>
+                    <div style="margin-top:4px">
+                      💰 القيمة: <span style="font-weight:700">${(a.price || 0).toLocaleString()} د.ع</span>
+                      <span style="margin-right:10px; padding:2px 8px; border-radius:12px; font-size:0.75rem; background:${a.isPaid ? 'rgba(16,185,129,0.1)' : 'rgba(239,68,68,0.1)'}; color:${a.isPaid ? 'var(--success)' : 'var(--danger)'}">
+                        ${a.isPaid ? '✅ مدفوع' : '⏳ دفع عند الحضور'}
+                      </span>
+                    </div>
+                    <div style="font-size:0.75rem; color:var(--text-light); margin-top:4px">💳 الطريقة: ${a.paymentMethod === 'cash' ? 'نقدي' : (a.paymentMethod === 'zaincash' ? 'زين كاش' : 'بطاقة')}</div>
+                    ${a.transactionId ? `<div style="font-size:0.7rem; color:var(--text-light)">🆔 Ref: ${a.transactionId}</div>` : ''}
                     ${a.notes ? `<div style="margin-top:5px; padding:8px; background:#f8fafc; border-radius:5px">📝 الملاحظة: ${a.notes}</div>` : ''}
                 </div>
                 
@@ -670,6 +698,81 @@
     if (id === 'schedule') setTimeout(initClinicMap, 100);
   };
   // ─────────────────────────────────────────────────────────────────────
+
+  const toggleAccFields = () => {
+    const type = document.getElementById('accType').value;
+    document.getElementById('cardFields').style.display = type === 'card' ? 'block' : 'none';
+    document.getElementById('zainFields').style.display = type === 'zaincash' ? 'block' : 'none';
+  };
+
+  const loadPaymentAccounts = async () => {
+    try {
+      const { accounts } = await api('GET', '/auth/payment-accounts');
+      const el = document.getElementById('accountsList');
+      if (!accounts || accounts.length === 0) {
+        el.innerHTML = '<p style="grid-column:1/-1;text-align:center;color:var(--text-light);padding:20px;">لا توجد حسابات مضافة</p>';
+        return;
+      }
+      el.innerHTML = accounts.map(acc => `
+        <div class="card" style="position:relative; overflow:hidden; border:${acc.isDefault ? '2px solid var(--primary)' : '1px solid var(--border)'}">
+          ${acc.isDefault ? '<span style="position:absolute;top:10px;left:10px;background:var(--primary);color:white;padding:2px 8px;border-radius:20px;font-size:0.7rem">حساب الاستلام الأساسي</span>' : ''}
+          <div style="display:flex;align-items:center;gap:15px;margin-bottom:15px;">
+            <div style="font-size:2.5rem">${acc.accountType === 'card' ? '💳' : '📱'}</div>
+            <div>
+              <div style="font-weight:700;font-size:1.1rem">${acc.accountType === 'card' ? acc.provider.toUpperCase() : 'Zain Cash'}</div>
+              <div style="color:var(--text-medium);">${acc.accountType === 'card' ? `**** **** **** ${acc.last4}` : acc.walletNumber}</div>
+            </div>
+          </div>
+          <div style="display:flex;gap:10px;">
+            ${!acc.isDefault ? `<button class="btn btn-sm btn-outline btn-full" onclick="setDefaultAccount('${acc._id}')">تعيين كأساسي</button>` : ''}
+            <button class="btn btn-sm btn-danger" onclick="deleteAccount('${acc._id}')">حذف</button>
+          </div>
+        </div>
+      `).join('');
+    } catch {}
+  };
+
+  const addPaymentAccount = async () => {
+    const accountType = document.getElementById('accType').value;
+    const data = {
+      accountType,
+      provider: document.getElementById('cardProvider').value,
+      holderName: document.getElementById('cardHolder').value,
+      cardNumber: document.getElementById('cardNumber').value,
+      expiryDate: document.getElementById('cardExpiry').value,
+      walletNumber: document.getElementById('walletNumber').value
+    };
+    if (accountType === 'card') data.walletNumber = '';
+    if (accountType === 'zaincash') {
+      data.provider = 'zaincash';
+      data.holderName = '';
+      data.cardNumber = '';
+      data.expiryDate = '';
+    }
+    try {
+      await api('POST', '/auth/payment-accounts', data);
+      showToast('تم إضافة حساب الاستلام بنجاح ✅', 'success');
+      loadPaymentAccounts();
+      ['cardHolder', 'cardNumber', 'cardExpiry', 'walletNumber'].forEach(id => document.getElementById(id).value = '');
+    } catch (err) { showToast(err.message, 'error'); }
+  };
+
+  const setDefaultAccount = async (id) => {
+    try {
+      await api('PUT', `/auth/payment-accounts/${id}/default`);
+      showToast('تم التحديث', 'success');
+      loadPaymentAccounts();
+    } catch {}
+  };
+
+  const deleteAccount = async (id) => {
+    if (!confirm('هل تود حذف هذا الحساب؟')) return;
+    try {
+      await api('DELETE', `/auth/payment-accounts/${id}`);
+      showToast('تم الحذف', 'info');
+      loadPaymentAccounts();
+    } catch {}
+  };
 
   init();
 </script>
